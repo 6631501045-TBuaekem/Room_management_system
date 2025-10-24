@@ -22,7 +22,7 @@ app.use('/public', express.static(path.join(__dirname, "public")));
 app.use(express.json());
 
 
-const timesim = null; // ทดสอบเวลา: Ex. timesim = 9, null = ใช้เวลาจริง.
+const timesim = 9; // ทดสอบเวลา: Ex. timesim = 9, null = ใช้เวลาจริง.
 
 // Return a Date object adjusted for simulated time
 function getNowDate() {
