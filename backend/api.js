@@ -644,7 +644,7 @@ app.get("/rooms/check/info", async function (req, res) {
 //         "room_description": "A lecture hall, Lcd projector, Screen, Amp, Mic and speaker with 160 available seats",
 //         "timeSlots": {
 //            "08:00 - 10:00": "Free",
-//            "10:00 - 12:00": "Disable",
+//            "10:00 - 12:00": "Free",
 //            "13:00 - 15:00": "Free",
 //            "15:00 - 17:00": "Free"
 //          }
