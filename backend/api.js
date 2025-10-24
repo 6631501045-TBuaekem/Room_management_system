@@ -248,7 +248,7 @@ app.get('/profile', async function (req, res) {
 //             "08.00 - 10.00": "Free"
 //             "10.00 - 12.00": "Pending"
 //             "13.00 - 15.00": "Reserved"
-//             "15.00 - 17.00": "Disable"
+//             "15.00 - 17.00": "Reserved"
 //         }
 //     },...
 // ]
