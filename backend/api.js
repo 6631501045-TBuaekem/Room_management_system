@@ -236,7 +236,7 @@ app.get('/profile', async function (req, res) {
 });
 
 
-// http://localhost:3005/rooms/info?date=2025-10
+// http://localhost:3005/rooms/info?date=2025-10-24
 // Browseroom
 // ได้ออกมา
 // [
