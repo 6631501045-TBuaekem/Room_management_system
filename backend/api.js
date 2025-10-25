@@ -22,7 +22,7 @@ app.use('/public', express.static(path.join(__dirname, "public")));
 app.use(express.json());
 
 
-const timesim = 9; // ทดสอบเวลา: Ex. timesim = 9, null = ใช้เวลาจริง.
+const timesim = 9; // ทดสอบเวลา: Ex. timesim = 9, null = ใช้เวลาจริง.  timesim=6 reset สถานะ
 
 // Return a Date object adjusted for simulated time
 function getNowDate() {
@@ -200,10 +200,10 @@ app.post("/logout", function (req, res) {
 // profile
 // ได้ออกมา
 // {
-//     "name": "ta",
-//     "username": "taa",
+//     "name": "Mike BB",
+//     "username": "Mike_Student",
 //     "role": "0"
-// } 
+// }
 app.get('/profile', async function (req, res) {
   const username = req.session?.username; // safer access
 
@@ -457,9 +457,9 @@ app.get("/rooms/request/info", async function (req, res) {
 
 // ใน body มี room_id, date, timeSlot, reason
 // {
-//     "room_id": "1",
-//     "date": "2025-03-29",
-//     "timeSlot": "13",
+//     "room_id": "35",
+//     "date": "2025-10-24",
+//     "timeSlot": "15",
 //     "reason": "Study group meeting"
 // }
 app.post("/rooms/request", async function(req, res) {
@@ -562,7 +562,7 @@ app.post("/rooms/request", async function(req, res) {
 //         {
 //             "request_id": 315,
 //             "room_name": "abc-123",
-//             "room_description": "a new room",
+//             "room_description": "new room",
 //             "booking_date": "24/10/2025",
 //             "booking_time": "15:00 - 17:00",
 //             "booking_status": "pending",
@@ -774,7 +774,7 @@ app.post('/rooms/manage/add', async function (req, res) {
 // ใน body มี room_id, room_name, room_description
 // {
 //     "room_id": 35,
-//     "room_name": "abc-123",
+//     "room_name": "abcs-123",
 //     "room_description": "a new room"
 // }
 // ได้ออกมา
@@ -943,8 +943,8 @@ app.get("/slotdashboard", function (req, res) {
 // [
 //     {
 //         "request_id": 314,
-//         "username": "taa",
-//         "room_name": "abc-123",
+//         "username": "Mike_Student",
+//         "room_name": "abcs-123",
 //         "booking_date": "24 October 2025",
 //         "booking_time": "15:00 - 17:00",
 //         "reason": "Study group meeting"
@@ -1115,11 +1115,11 @@ app.post("/update-requests", async function (req, res) {
 // ได้ออกมา
 // [
 //     {
-//         "room": "abc-123",
+//         "room": "abcs-123",
 //         "booking_date": "24/10/25",
 //         "booking_time": "12:48",
 //         "booking_timeslot": "15.00 - 17.00",
-//         "booker_name": "ta",
+//         "booker_name": "Mike_Student",
 //         "status": "pending",
 //         "approver_name": "-"
 //     }
