@@ -1323,7 +1323,7 @@ console.log('🕒 Room timeslot cron scheduler active — checks every minute.')
 
 
 const port = 3005;
-app.listen(port, function(){
+app.listen(port,'0.0.0.0', function(){
     console.log(`Server is running on ${port}`)
 })
 
