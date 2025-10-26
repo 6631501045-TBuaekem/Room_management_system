@@ -151,35 +151,36 @@ class __HistoryState extends State<Historypage> {
                   ),
                 ],
               ),
-              const SizedBox(height: 30), // เพิ่มระยะห่าง
+              const SizedBox(height: 20), // เพิ่มระยะห่างก่อน "Approve by"
               // 4. Approve by Row (ถ้ามีข้อมูล)
               if (entry.approvedBy != null)
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
+                  mainAxisAlignment: MainAxisAlignment
+                      .center, // ให้ 'Approve by' ชิดซ้าย และ 'sadboy' ชิดขวา
                   children: [
                     const Text(
-                      'Approve by',
+                      'Approve by ',
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-
-                    const SizedBox(width: 150),
-
-                    Text(
-                      entry.approvedBy!,
-                      style: const TextStyle(fontSize: 18),
+                    SizedBox(width: 150),
+                    Align(
+                      child: Text(
+                        entry.approvedBy!, // สมมติว่านี่คือค่า 'sadboy'
+                        style: const TextStyle(fontSize: 18),
+                      ),
                     ),
                   ],
                 ),
             ],
           ),
         ),
-        // เพิ่ม Divider
+        // เพิ่ม Divider ที่ด้านล่างของแต่ละบล็อก
         const Padding(
           padding: EdgeInsets.symmetric(horizontal: 20.0),
-          child: Divider(color: Colors.black),
+          child: Divider(color: Colors.black54),
         ),
       ],
     );
@@ -187,6 +188,7 @@ class __HistoryState extends State<Historypage> {
 
   @override
   Widget build(BuildContext context) {
+    // กำหนดสีพื้นหลังของ Scaffold ให้เป็นสีชมพูอ่อนมาก เพื่อให้ตรงกับรูปภาพ
     return Scaffold(
       appBar: AppBar(
         title: const Text(
