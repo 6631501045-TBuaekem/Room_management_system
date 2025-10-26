@@ -151,35 +151,35 @@ class __HistoryState extends State<Historypage> {
                   ),
                 ],
               ),
-              const SizedBox(height: 20), // เพิ่มระยะห่างก่อน "Approve by"
+              const SizedBox(height: 30), // เพิ่มระยะห่าง
               // 4. Approve by Row (ถ้ามีข้อมูล)
               if (entry.approvedBy != null)
                 Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Expanded(
-                      flex:
-                          5, // ปรับ flex เพื่อให้ 'Approve by' อยู่ชิดซ้ายมากขึ้น
-                      child: Text('Approve by', style: TextStyle(fontSize: 18)),
-                    ),
-                    Expanded(
-                      flex: 5, // ปรับ flex เพื่อให้ 'sadboy' อยู่ชิดขวามากขึ้น
-                      child: Align(
-                        alignment: Alignment.centerRight,
-                        child: Text(
-                          entry.approvedBy!,
-                          style: const TextStyle(fontSize: 18),
-                        ),
+                    const Text(
+                      'Approve by',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
                       ),
+                    ),
+
+                    const SizedBox(width: 150),
+
+                    Text(
+                      entry.approvedBy!,
+                      style: const TextStyle(fontSize: 18),
                     ),
                   ],
                 ),
             ],
           ),
         ),
-        // เพิ่ม Divider ที่ด้านล่างของแต่ละบล็อก
+        // เพิ่ม Divider
         const Padding(
           padding: EdgeInsets.symmetric(horizontal: 20.0),
-          child: Divider(color: Colors.black54),
+          child: Divider(color: Colors.black),
         ),
       ],
     );
@@ -187,10 +187,7 @@ class __HistoryState extends State<Historypage> {
 
   @override
   Widget build(BuildContext context) {
-    // กำหนดสีพื้นหลังของ Scaffold ให้เป็นสีชมพูอ่อนมาก เพื่อให้ตรงกับรูปภาพ
     return Scaffold(
-      backgroundColor: const Color(0xFFFCF7F7),
-
       appBar: AppBar(
         title: const Text(
           'History',
@@ -199,9 +196,6 @@ class __HistoryState extends State<Historypage> {
         centerTitle: true,
         foregroundColor: Colors.black,
         elevation: 0,
-        backgroundColor: const Color(
-          0xFFFCF7F7,
-        ), // ให้ AppBar มีสีเดียวกับพื้นหลัง
         bottom: const PreferredSize(
           preferredSize: Size.fromHeight(1.0),
           child: Divider(color: Colors.grey, thickness: 1, height: 1),
