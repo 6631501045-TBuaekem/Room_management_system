@@ -913,22 +913,30 @@ app.get("/slotdashboard", function (req, res) {
 
   const query = `
       SELECT 
+          -- 1. นับ Free Slots (นับ Slot)
           SUM(CASE WHEN timestatus8 = 'Free' THEN 1 ELSE 0 END 
               + CASE WHEN timestatus10 = 'Free' THEN 1 ELSE 0 END 
               + CASE WHEN timestatus13 = 'Free' THEN 1 ELSE 0 END 
               + CASE WHEN timestatus15 = 'Free' THEN 1 ELSE 0 END) AS freeSlots,
+
+          -- 2. นับ Pending Slots (นับ Slot)
           SUM(CASE WHEN timestatus8 = 'Pending' THEN 1 ELSE 0 END 
               + CASE WHEN timestatus10 = 'Pending' THEN 1 ELSE 0 END 
               + CASE WHEN timestatus13 = 'Pending' THEN 1 ELSE 0 END 
               + CASE WHEN timestatus15 = 'Pending' THEN 1 ELSE 0 END) AS pendingSlots,
+
+          -- 3. นับ Reserved Slots (นับ Slot)
           SUM(CASE WHEN timestatus8 = 'Reserved' THEN 1 ELSE 0 END 
               + CASE WHEN timestatus10 = 'Reserved' THEN 1 ELSE 0 END 
               + CASE WHEN timestatus13 = 'Reserved' THEN 1 ELSE 0 END 
               + CASE WHEN timestatus15 = 'Reserved' THEN 1 ELSE 0 END) AS reservedSlots,
-          SUM(CASE WHEN timestatus8 = 'Disable' THEN 1 ELSE 0 END 
-              + CASE WHEN timestatus10 = 'Disable' THEN 1 ELSE 0 END 
-              + CASE WHEN timestatus13 = 'Disable' THEN 1 ELSE 0 END 
-              + CASE WHEN timestatus15 = 'Disable' THEN 1 ELSE 0 END) AS disabledSlots 
+
+          -- 4. นับ Disabled Rooms (นับห้องที่ทุก Slot ถูก Disable) 🟢 แก้ไขตรงนี้
+          SUM(CASE WHEN timestatus8 = 'Disable' 
+                   AND timestatus10 = 'Disable' 
+                   AND timestatus13 = 'Disable' 
+                   AND timestatus15 = 'Disable' 
+              THEN 1 ELSE 0 END) AS disabledRooms
       FROM room;
   `;
 
@@ -947,7 +955,11 @@ app.get("/slotdashboard", function (req, res) {
     // Combine date with slot summary
     res.status(200).json({
       date: formattedDate,
-      ...result[0],
+      // 🔴 ส่ง 'disabledRooms' กลับไปในคีย์ 'disabledSlots'
+      freeSlots: result[0].freeSlots.toString(), 
+      pendingSlots: result[0].pendingSlots.toString(),
+      reservedSlots: result[0].reservedSlots.toString(),
+      disabledSlots: result[0].disabledRooms.toString(), // ใช้ disabledRooms ในคีย์ disabledSlots เพื่อไม่แก้ Flutter code
     });
   });
 });
