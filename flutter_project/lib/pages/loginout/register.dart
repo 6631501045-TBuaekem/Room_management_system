@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:convert';
-import 'package:http/http.dart' as http;
+import '../../utills/session_cilent.dart'; 
+final session = SessionHttpClient();
 
 class Registerpage extends StatefulWidget {
   const Registerpage({super.key});
@@ -35,7 +36,7 @@ class _RegisterpageState extends State<Registerpage> {
       }
       final body = {"name": nameInput, "username": usernameInput, "password": passwordInput, "confirm_password": confirmPasswordInput, "role": '0' };
       final url = Uri.parse('http://10.0.2.2:3005/register');
-      final response = await http.post(url, body: jsonEncode(body), headers:{"Content-Type": "application/json"},);
+      final response = await session.post(url, body: jsonEncode(body));
       if(response.statusCode == 200){
         Navigator.pop(context); // return to login page
       }else{
