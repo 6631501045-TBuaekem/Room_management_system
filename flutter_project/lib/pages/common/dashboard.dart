@@ -10,10 +10,10 @@ class Dashboardpage extends StatefulWidget {
 class _DashboardpageState extends State<Dashboardpage> {
   // ตัวอย่างข้อมูลห้อง (สามารถเปลี่ยนเป็นดึงจาก API)
   final Map<String, Map<String, dynamic>> roomStatus = {
-    "Free": {"count": 4, "color": Colors.green[300]},
-    "Pending": {"count": 3, "color": Colors.amber[400]},
-    "Reserve": {"count": 2, "color": Colors.deepPurple[300]},
-    "Disable": {"count": 1, "color": Colors.red[300]},
+    "Free Table": {"count": 4, "color": Colors.green[300]},
+    "Pending Table": {"count": 3, "color": Colors.amber[400]},
+    "Reserve Table": {"count": 2, "color": Colors.deepPurple[300]},
+    "Disable Room": {"count": 1, "color": Colors.red[300]},
   };
 
   @override
