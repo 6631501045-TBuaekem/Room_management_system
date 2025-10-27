@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'dart:convert';
 import '../../main.dart';
 import 'register.dart';
-import '../../utills/session_cilent.dart'; 
+import '../../utills/session_cilent.dart';
+
 final session = SessionHttpClient();
 
 class Loginpage extends StatefulWidget {
@@ -19,26 +20,28 @@ class _LoginpageState extends State<Loginpage> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    precacheImage(const AssetImage('assets/images/login.jpg'), context); // fix white screen โหลดรูปล่วงหน้าก่อน
+    precacheImage(
+      const AssetImage('assets/images/login.jpg'),
+      context,
+    ); // fix white screen โหลดรูปล่วงหน้าก่อน
   }
-
 
   void login() async {
     final body = {"username": _controller1.text, "password": _controller2.text};
     final url = Uri.parse('http://10.0.2.2:3005/login');
     final response = await session.post(url, body: jsonEncode(body));
-    if(response.statusCode == 200){
+    if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
       final userRole = data['role'];
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (_) => RoomNavigation(userRole: userRole)),
       );
-    }else {
+    } else {
       String message = response.body;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(message)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
     }
   }
 
@@ -48,7 +51,10 @@ class _LoginpageState extends State<Loginpage> {
       // backgroundColor: const Color.fromARGB(255, 177, 201, 150),
       body: Container(
         decoration: const BoxDecoration(
-          image: DecorationImage(image: AssetImage('assets/images/login.jpg'), fit: BoxFit.cover),
+          image: DecorationImage(
+            image: AssetImage('assets/images/login.jpg'),
+            fit: BoxFit.cover,
+          ),
         ),
         child: Center(
           child: SingleChildScrollView(
@@ -135,7 +141,7 @@ class _LoginpageState extends State<Loginpage> {
                   style: TextStyle(fontSize: 15, color: Colors.white),
                 ),
                 TextButton(
-                  onPressed: (){
+                  onPressed: () {
                     Navigator.push(
                       context,
                       MaterialPageRoute(builder: (_) => const Registerpage()),
@@ -151,7 +157,6 @@ class _LoginpageState extends State<Loginpage> {
                     ),
                   ),
                 ),
-                
               ],
             ),
           ),

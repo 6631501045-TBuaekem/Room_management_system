@@ -3,19 +3,34 @@ const path = require('path');
 const pool = require('./config/db.js');
 const bcrypt = require('bcrypt');
 const session = require('express-session');
-const app = express();
 const mysql = require('mysql2');
+const MySQLStore = require('express-mysql-session')(session);
 
-// Add session middleware
+const app = express();
+
+// ✅ Create MySQL session store using same DB as your pool
+const sessionStore = new MySQLStore({
+  host: 'localhost',
+  port: 3306,
+  user: 'root',             // your DB username
+  password: '',             // your DB password
+  database: 'room_reservation_system' // your DB name
+}, pool.promise());          // optional: reuse your existing pool
+
+// ✅ Attach express-session middleware
 app.use(session({
-    secret: 'your-secret-key',
-    resave: true,
-    saveUninitialized: true,
-    rolling: true, // Refresh cookie expiration on every response
-    cookie: { 
-        secure: false, // Set to true if using HTTPS
-        maxAge: 24 * 60 * 60 * 1000 // 24 hours in milliseconds
-    }
+  key: 'connect.sid',        // same cookie key Express uses by default
+  secret: 'your-secret-key',
+  store: sessionStore,
+  resave: false,
+  saveUninitialized: false,
+  rolling: true,
+  cookie: {
+    secure: false,           // set true only if HTTPS
+    httpOnly: true,
+    sameSite: 'lax',         // helps with cookie reliability on mobile
+    maxAge: 24 * 60 * 60 * 1000 // 24h
+  }
 }));
 
 app.use('/public', express.static(path.join(__dirname, "public")));
@@ -898,22 +913,30 @@ app.get("/slotdashboard", function (req, res) {
 
   const query = `
       SELECT 
+          -- 1. นับ Free Slots (นับ Slot)
           SUM(CASE WHEN timestatus8 = 'Free' THEN 1 ELSE 0 END 
               + CASE WHEN timestatus10 = 'Free' THEN 1 ELSE 0 END 
               + CASE WHEN timestatus13 = 'Free' THEN 1 ELSE 0 END 
               + CASE WHEN timestatus15 = 'Free' THEN 1 ELSE 0 END) AS freeSlots,
+
+          -- 2. นับ Pending Slots (นับ Slot)
           SUM(CASE WHEN timestatus8 = 'Pending' THEN 1 ELSE 0 END 
               + CASE WHEN timestatus10 = 'Pending' THEN 1 ELSE 0 END 
               + CASE WHEN timestatus13 = 'Pending' THEN 1 ELSE 0 END 
               + CASE WHEN timestatus15 = 'Pending' THEN 1 ELSE 0 END) AS pendingSlots,
+
+          -- 3. นับ Reserved Slots (นับ Slot)
           SUM(CASE WHEN timestatus8 = 'Reserved' THEN 1 ELSE 0 END 
               + CASE WHEN timestatus10 = 'Reserved' THEN 1 ELSE 0 END 
               + CASE WHEN timestatus13 = 'Reserved' THEN 1 ELSE 0 END 
               + CASE WHEN timestatus15 = 'Reserved' THEN 1 ELSE 0 END) AS reservedSlots,
-          SUM(CASE WHEN timestatus8 = 'Disable' THEN 1 ELSE 0 END 
-              + CASE WHEN timestatus10 = 'Disable' THEN 1 ELSE 0 END 
-              + CASE WHEN timestatus13 = 'Disable' THEN 1 ELSE 0 END 
-              + CASE WHEN timestatus15 = 'Disable' THEN 1 ELSE 0 END) AS disabledSlots 
+
+          -- 4. นับ Disabled Rooms (นับห้องที่ทุก Slot ถูก Disable) 🟢 แก้ไขตรงนี้
+          SUM(CASE WHEN timestatus8 = 'Disable' 
+                   AND timestatus10 = 'Disable' 
+                   AND timestatus13 = 'Disable' 
+                   AND timestatus15 = 'Disable' 
+              THEN 1 ELSE 0 END) AS disabledRooms
       FROM room;
   `;
 
@@ -932,7 +955,11 @@ app.get("/slotdashboard", function (req, res) {
     // Combine date with slot summary
     res.status(200).json({
       date: formattedDate,
-      ...result[0],
+      // 🔴 ส่ง 'disabledRooms' กลับไปในคีย์ 'disabledSlots'
+      freeSlots: result[0].freeSlots.toString(), 
+      pendingSlots: result[0].pendingSlots.toString(),
+      reservedSlots: result[0].reservedSlots.toString(),
+      disabledSlots: result[0].disabledRooms.toString(), // ใช้ disabledRooms ในคีย์ disabledSlots เพื่อไม่แก้ Flutter code
     });
   });
 });

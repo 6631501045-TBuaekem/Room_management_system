@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:convert';
-import '../../utills/session_cilent.dart'; 
+import '../../utills/session_cilent.dart';
+
 final session = SessionHttpClient();
 
 class Registerpage extends StatefulWidget {
@@ -19,32 +20,42 @@ class _RegisterpageState extends State<Registerpage> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    precacheImage(const AssetImage('assets/images/register.jpg'), context); // fix white screen โหลดรูปล่วงหน้าก่อน
+    precacheImage(
+      const AssetImage('assets/images/register.jpg'),
+      context,
+    ); // fix white screen โหลดรูปล่วงหน้าก่อน
   }
 
   void register() async {
-      final nameInput = _controller1.text;
-      final usernameInput = _controller2.text;
-      final passwordInput = _controller3.text;
-      final confirmPasswordInput = _controller4.text;
+    final nameInput = _controller1.text;
+    final usernameInput = _controller2.text;
+    final passwordInput = _controller3.text;
+    final confirmPasswordInput = _controller4.text;
 
-      if(passwordInput != confirmPasswordInput){
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Password doesn't match")),
-        );
-        return;
-      }
-      final body = {"name": nameInput, "username": usernameInput, "password": passwordInput, "confirm_password": confirmPasswordInput, "role": '0' };
-      final url = Uri.parse('http://10.0.2.2:3005/register');
-      final response = await session.post(url, body: jsonEncode(body));
-      if(response.statusCode == 200){
-        Navigator.pop(context); // return to login page
-      }else{
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(response.body)),
-        );
-      }
+    if (passwordInput != confirmPasswordInput) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text("Password doesn't match")));
+      return;
+    }
+    final body = {
+      "name": nameInput,
+      "username": usernameInput,
+      "password": passwordInput,
+      "confirm_password": confirmPasswordInput,
+      "role": '0',
+    };
+    final url = Uri.parse('http://10.0.2.2:3005/register');
+    final response = await session.post(url, body: jsonEncode(body));
+    if (response.statusCode == 200) {
+      Navigator.pop(context); // return to login page
+    } else {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(response.body)));
+    }
   }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -144,21 +155,21 @@ class _RegisterpageState extends State<Registerpage> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 11,),
+                  const SizedBox(height: 11),
                   TextButton(
-                  onPressed: (){
-                    Navigator.pop(context);
-                  },
-                  child: const Text(
-                    'Back to login',
-                    style: TextStyle(
-                      fontSize: 15,
-                      color: Color.fromARGB(255, 198, 212, 198),
-                      fontWeight: FontWeight.bold,
-                      decoration: TextDecoration.underline,
+                    onPressed: () {
+                      Navigator.pop(context);
+                    },
+                    child: const Text(
+                      'Back to login',
+                      style: TextStyle(
+                        fontSize: 15,
+                        color: Color.fromARGB(255, 198, 212, 198),
+                        fontWeight: FontWeight.bold,
+                        decoration: TextDecoration.underline,
+                      ),
                     ),
                   ),
-                ),
                 ],
               ),
             ),
