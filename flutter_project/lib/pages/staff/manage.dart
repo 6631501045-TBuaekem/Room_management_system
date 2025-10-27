@@ -100,6 +100,7 @@ class _ManageroompageState extends State<Manageroompage> {
                     onPressed: () => Navigator.pop(context),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.red,
+                      foregroundColor: Colors.white,
                       minimumSize: const Size(100, 40),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8),
@@ -121,6 +122,7 @@ class _ManageroompageState extends State<Manageroompage> {
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.green,
+                      foregroundColor: Colors.white,
                       minimumSize: const Size(100, 40),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8),
@@ -198,6 +200,7 @@ class _ManageroompageState extends State<Manageroompage> {
                     onPressed: () => Navigator.pop(context),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.red,
+                      foregroundColor: Colors.white,
                       minimumSize: const Size(100, 40),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8),
@@ -224,6 +227,7 @@ class _ManageroompageState extends State<Manageroompage> {
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.green,
+                      foregroundColor: Colors.white,
                       minimumSize: const Size(100, 40),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8),
@@ -352,25 +356,35 @@ class _ManageroompageState extends State<Manageroompage> {
                               ),
                               Row(
                                 children: [
-                                  Text(
-                                    r['free'] ? 'Free' : 'Busy',
-                                    style: TextStyle(
-                                      color: r['free'] ? Colors.green : Colors.grey,
-                                      fontSize: 13,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  CupertinoSwitch(
-                                    value: r['enabled'],
-                                    onChanged: (v) => setState(() => r['enabled'] = v),
-                                    activeColor: Colors.green,
-                                  ),
-                                  const SizedBox(width: 4),
-                                  const Text(
-                                    'Dis',
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      color: Colors.grey,
+                                  // Availability control: tapping or toggling changes r['free']
+                                  GestureDetector(
+                                    onTap: () => setState(() => r['free'] = !r['free']),
+                                    child: Row(
+                                      children: [
+                                        Text(
+                                          'Free',
+                                          style: TextStyle(
+                                            color: r['free'] ? Colors.green : Colors.grey,
+                                            fontSize: 15,
+                                            fontWeight: r['free'] ? FontWeight.w600 : FontWeight.normal,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        CupertinoSwitch(
+                                          value: r['free'],
+                                          onChanged: (v) => setState(() => r['free'] = v),
+                                          activeColor: Colors.green,
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          'Disable',
+                                          style: TextStyle(
+                                            color: r['free'] ? Colors.grey : Colors.red,
+                                            fontSize: 15,
+                                            fontWeight: r['free'] ? FontWeight.normal : FontWeight.w600,
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ),
                                 ],
