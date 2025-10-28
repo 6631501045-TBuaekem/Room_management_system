@@ -104,6 +104,9 @@ class __HistoryState extends State<Historypage> {
         final List<dynamic> rawData = json.decode(response.body);
         _historyData = rawData
             .map((json) => HistoryEntry.fromJson(json))
+            .where(
+              (entry) => entry.status != 'Pending',
+            ) // 👈 กรองสถานะ Pending ออก
             .toList();
       } else if (response.statusCode == 401) {
         _error = 'Unauthorized. Please login again.';
@@ -123,26 +126,25 @@ class __HistoryState extends State<Historypage> {
 
   // Widget สำหรับสร้างรายการประวัติแต่ละบล็อก
   Widget _buildHistoryItem(HistoryEntry entry) {
-    final bool isApproved = entry.status == 'Approve';
     final bool isRejected = entry.status == 'Reject';
-    final bool isStudent =
-        widget.userRole == UserRole.Student; // 👈 ตรวจสอบ Role Student
+    final bool isStudent = widget.userRole == UserRole.Student;
 
     final Color statusColor = isRejected
         ? Colors.red
-        : (isApproved ? Colors.green : Colors.orange);
+        : Colors.green; // ถ้าไม่ใช่ Reject ก็คือ Approve
 
-    // **ตรรกะการแสดงผล Approve by เดิม (ใช้สำหรับ Staff Role 1 เท่านั้น):**
+    // **ตรรกะการแสดงผล Approve by (แถวแยกต่างหาก):**
+    // แสดงเฉพาะ Staff Role "1" ที่มีการอนุมัติ/ปฏิเสธแล้วเท่านั้น
     final bool isRole1Staff = widget.currentRoleCode == "1";
 
     final bool shouldShowApprovedByBelow =
-        isRole1Staff && entry.status != 'Pending' && entry.approvedBy != null;
+        isRole1Staff && entry.approvedBy != null; // ไม่ต้องเช็ค Pending แล้ว
 
     // กำหนดหัวข้อคอลัมน์ที่ 3 และข้อมูล
     final String thirdColumnHeader = isStudent ? 'Approve by' : 'User';
     final String thirdColumnData = isStudent
-        ? (entry.approvedBy ?? '-') // ถ้าเป็น Student ให้แสดง ApprovedBy
-        : entry.user; // ถ้าเป็น Staff/Approver ให้แสดง User
+        ? (entry.approvedBy ?? '-') // ถ้า Student แสดง ApprovedBy
+        : entry.user; // ถ้า Staff/Approver แสดง User
 
     return Column(
       children: [
@@ -194,10 +196,9 @@ class __HistoryState extends State<Historypage> {
                     ),
                   ),
                   Expanded(
-                    // 👈 แก้ไขหัวข้อคอลัมน์ที่ 3
                     flex: 3,
                     child: Text(
-                      thirdColumnHeader, // 'User' หรือ 'Approve by'
+                      thirdColumnHeader,
                       style: const TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 18,
@@ -233,10 +234,9 @@ class __HistoryState extends State<Historypage> {
                     ),
                   ),
                   Expanded(
-                    // 👈 แก้ไขข้อมูลคอลัมน์ที่ 3
                     flex: 3,
                     child: Text(
-                      thirdColumnData, // ชื่อผู้จอง หรือ ชื่อผู้อนุมัติ
+                      thirdColumnData,
                       style: const TextStyle(fontSize: 18),
                       textAlign: TextAlign.center,
                     ),
@@ -244,12 +244,8 @@ class __HistoryState extends State<Historypage> {
                 ],
               ),
 
-              // 4. Approve by Row (สำหรับ Staff Role 1 ที่ต้องการแสดงข้อมูลซ้ำซ้อน)
-              // Note: ถ้าคุณต้องการให้ Role 1 แสดง 'Approve by' ใน Row แยกต่างหาก
-              // เหมือนที่โค้ดเดิมพยายามทำ ให้ใช้ shouldShowApprovedByBelow
-              // แต่ถ้าต้องการให้ Role 1 แสดงแค่ 'User' ใน Row เดียว ก็สามารถลบ Block นี้ทิ้งได้เลย
+              // 4. Approve by Row (แถวแยกต่างหาก - เฉพาะ Staff Role 1)
               if (shouldShowApprovedByBelow && !isStudent) ...[
-                // 👈 ตรวจสอบเฉพาะ Role 1 และไม่ใช่ Student
                 const SizedBox(height: 35),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -295,7 +291,9 @@ class __HistoryState extends State<Historypage> {
         ),
       );
     } else if (_historyData.isEmpty) {
-      bodyContent = const Center(child: Text('No history found.'));
+      bodyContent = const Center(
+        child: Text('No history found (Only showing Approve/Reject).'),
+      );
     } else {
       bodyContent = ListView.builder(
         itemCount: _historyData.length,
