@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import '../../utills/session_cilent.dart';
+import 'dart:convert';
 
 final session = SessionHttpClient();
 
@@ -13,445 +14,320 @@ class Manageroompage extends StatefulWidget {
 
 class _ManageroompageState extends State<Manageroompage> {
   final TextEditingController searchCtrl = TextEditingController();
+  List<dynamic> rooms = [];
+  bool isLoading = true;
 
-  // Temporary local list — later you can fetch from backend using session.get()
-  final List<Map<String, dynamic>> rooms = [
-    {
-      'name': 'Room B101',
-      'desc': 'Projector, 20 seats, whiteboard',
-      'free': true,
-      'enabled': true,
-      'slots': [
-        {'time': '08:00 – 10:00', 'status': 'Disable'},
-        {'time': '10:00 – 12:00', 'status': 'Disable'},
-        {'time': '13:00 – 15:00', 'status': 'Disable'},
-        {'time': '15:00 – 17:00', 'status': 'Disable'},
-      ],
-    },
-    {
-      'name': 'Room C102',
-      'desc': 'Projector, 20 seats, whiteboard',
-      'free': true,
-      'enabled': false,
-      'slots': [
-        {'time': '08:00 – 10:00', 'status': 'Free'},
-      ],
-    },
-  ];
-
-  void _openEditRoomPopup(Map<String, dynamic> room) {
-    final nameCtrl = TextEditingController(text: room['name']);
-    final descCtrl = TextEditingController(text: room['desc']);
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Edit room',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: nameCtrl,
-                decoration: InputDecoration(
-                  hintText: 'room_name',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: const BorderSide(color: Colors.grey),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: const BorderSide(color: Colors.grey),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: descCtrl,
-                maxLines: 4,
-                decoration: InputDecoration(
-                  hintText: 'description',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: const BorderSide(color: Colors.grey),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: const BorderSide(color: Colors.grey),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  ElevatedButton(
-                    onPressed: () => Navigator.pop(context),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.red,
-                      foregroundColor: Colors.white,
-                      minimumSize: const Size(100, 40),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                    child: const Text('Cancel'),
-                  ),
-                  const SizedBox(width: 12),
-                  ElevatedButton(
-                    onPressed: () {
-                      if (nameCtrl.text.isEmpty) return;
-                      // You can later replace this with API call:
-                      // await session.put('/rooms/${room['id']}', body: {...});
-                      setState(() {
-                        room['name'] = nameCtrl.text;
-                        room['desc'] = descCtrl.text;
-                      });
-                      Navigator.pop(context);
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green,
-                      foregroundColor: Colors.white,
-                      minimumSize: const Size(100, 40),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                    child: const Text('Confirm'),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
+  @override
+  void initState() {
+    super.initState();
+    fetchRooms();
   }
 
-  void _openAddRoomPopup() {
+  // Fetch all rooms (Free or Disable only)
+  Future<void> fetchRooms() async {
+    try {
+      final url = Uri.parse('http://10.0.2.2:3005/rooms/manage/info');
+      final response = await session.get(url);
+      if (response.statusCode == 200) {
+        final List<dynamic> data = jsonDecode(response.body);
+        setState(() {
+          rooms = data;
+          isLoading = false;
+        });
+      } else {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(response.body)));
+      }
+    } catch (e) {
+      debugPrint('Error fetching rooms: $e');
+      setState(() => isLoading = false);
+    }
+  }
+
+  // Add room
+  Future<void> addRoom(String name, String desc) async {
+    try {
+      final url = Uri.parse('http://10.0.2.2:3005/rooms/manage/add');
+      final body = {"room_name": name, "room_description": desc};
+      final response = await session.post(url, body: jsonEncode(body));
+      final data = jsonDecode(response.body);
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(data['message'] ?? response.body)));
+      await fetchRooms();
+    } catch (e) {
+      debugPrint('Error adding room: $e');
+    }
+  }
+
+  // Edit room
+  Future<void> editRoom(int id, String name, String desc) async {
+    try {
+      final url = Uri.parse('http://10.0.2.2:3005/rooms/manage/edit');
+      final body = {"room_id": id, "room_name": name, "room_description": desc};
+      final response = await session.put(url, body: jsonEncode(body));
+      final data = jsonDecode(response.body);
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(data['message'] ?? response.body)));
+      await fetchRooms();
+    } catch (e) {
+      debugPrint('Error editing room: $e');
+    }
+  }
+
+  // Enable / Disable room
+  Future<void> toggleRoomStatus(int roomId, bool enabled) async {
+    try {
+      final url = Uri.parse('http://10.0.2.2:3005/rooms/manage/enaanddis');
+      final action = enabled ? "enable" : "disable";
+      final body = {"room_id": roomId, "action": action};
+      final response = await session.put(url, body: jsonEncode(body));
+      final data = jsonDecode(response.body);
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(data['message'] ?? response.body)));
+      await fetchRooms();
+    } catch (e) {
+      debugPrint('Error toggling room: $e');
+    }
+  }
+
+  void openAddRoomDialog() {
     final nameCtrl = TextEditingController();
     final descCtrl = TextEditingController();
 
     showDialog(
       context: context,
-      barrierDismissible: false,
-      builder: (context) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Add room',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: nameCtrl,
-                decoration: InputDecoration(
-                  hintText: 'room_name',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: const BorderSide(color: Colors.grey),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: const BorderSide(color: Colors.grey),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: descCtrl,
-                maxLines: 4,
-                decoration: InputDecoration(
-                  hintText: 'description',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: const BorderSide(color: Colors.grey),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: const BorderSide(color: Colors.grey),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  ElevatedButton(
-                    onPressed: () => Navigator.pop(context),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.red,
-                      foregroundColor: Colors.white,
-                      minimumSize: const Size(100, 40),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                    child: const Text('Cancel'),
-                  ),
-                  const SizedBox(width: 12),
-                  ElevatedButton(
-                    onPressed: () {
-                      if (nameCtrl.text.isEmpty) return;
-                      // You can later replace this with API call:
-                      // await session.post('/rooms', body: {...});
-                      setState(() {
-                        rooms.add({
-                          'name': nameCtrl.text,
-                          'desc': descCtrl.text,
-                          'free': true,
-                          'enabled': true,
-                          'slots': [],
-                        });
-                      });
-                      Navigator.pop(context);
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green,
-                      foregroundColor: Colors.white,
-                      minimumSize: const Size(100, 40),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                    child: const Text('Confirm'),
-                  ),
-                ],
-              ),
-            ],
-          ),
+      builder: (context) => AlertDialog(
+        title: const Text('Add Room'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: nameCtrl,
+              decoration: const InputDecoration(labelText: 'Room Name'),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: descCtrl,
+              decoration: const InputDecoration(labelText: 'Description'),
+            ),
+          ],
         ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel', style: TextStyle(color: Colors.red)),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              if (nameCtrl.text.isEmpty || descCtrl.text.isEmpty) return;
+              Navigator.pop(context);
+              await addRoom(nameCtrl.text, descCtrl.text);
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.black),
+            child: const Text('Confirm', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void openEditDialog(Map<String, dynamic> room) {
+    final nameCtrl = TextEditingController(text: room['room_name']);
+    final descCtrl = TextEditingController(text: room['room_description']);
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Edit Room'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: nameCtrl,
+              decoration: const InputDecoration(labelText: 'Room Name'),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: descCtrl,
+              decoration: const InputDecoration(labelText: 'Description'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel', style: TextStyle(color: Colors.red)),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              if (nameCtrl.text.isEmpty || descCtrl.text.isEmpty) return;
+              Navigator.pop(context);
+              await editRoom(room['room_id'], nameCtrl.text, descCtrl.text);
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.black),
+            child: const Text('Confirm', style: TextStyle(color: Colors.white)),
+          ),
+        ],
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final filteredRooms = rooms
-        .where((r) => r['name']
-            .toLowerCase()
-            .contains(searchCtrl.text.toLowerCase()))
-        .toList();
+    final filteredRooms = rooms.where((r) {
+      final name = (r['room_name'] ?? '').toString().toLowerCase();
+      final query = searchCtrl.text.toLowerCase();
+      return name.contains(query);
+    }).toList();
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Add/Edit'),
-        centerTitle: true,
+        title: const Text('Add / Edit Room', style: TextStyle(color: Colors.black)),
         backgroundColor: Colors.white,
+        centerTitle: true,
         elevation: 0,
       ),
       backgroundColor: const Color(0xFFF7F7F7),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            Container(
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(8),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
-                    blurRadius: 4,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: Row(
-                children: [
-                  const Icon(Icons.search, color: Colors.grey),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: TextField(
-                      controller: searchCtrl,
-                      decoration: const InputDecoration(
-                        hintText: 'Search room',
-                        border: InputBorder.none,
-                        contentPadding: EdgeInsets.symmetric(vertical: 12),
-                      ),
-                      onChanged: (_) => setState(() {}),
-                    ),
-                  ),
-                  if (searchCtrl.text.isNotEmpty)
-                    IconButton(
-                      icon: const Icon(Icons.close, color: Colors.red),
-                      onPressed: () {
-                        searchCtrl.clear();
-                        setState(() {});
-                      },
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
-                    ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: _openAddRoomPopup,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.black,
-                foregroundColor: Colors.white,
-                minimumSize: const Size(double.infinity, 45),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-              child: const Text('Add Room'),
-            ),
-            const SizedBox(height: 12),
-            const SizedBox(height: 16),
-            Expanded(
-              child: ListView.builder(
-                itemCount: filteredRooms.length,
-                itemBuilder: (context, i) {
-                  final r = filteredRooms[i];
-                  return Container(
-                    margin: const EdgeInsets.only(bottom: 12),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(12),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.05),
-                          blurRadius: 4,
-                          offset: const Offset(0, 2),
+      body: isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    children: [
+                      TextField(
+                        controller: searchCtrl,
+                        decoration: InputDecoration(
+                          hintText: 'Search room',
+                          prefixIcon: const Icon(Icons.search),
+                          suffixIcon: searchCtrl.text.isNotEmpty
+                              ? IconButton(
+                                  icon: const Icon(Icons.close),
+                                  onPressed: () {
+                                    searchCtrl.clear();
+                                    setState(() {});
+                                  },
+                                )
+                              : null,
+                          filled: true,
+                          fillColor: Colors.white,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: BorderSide.none,
+                          ),
                         ),
-                      ],
-                    ),
-                    child: Padding(
+                        onChanged: (_) => setState(() {}),
+                      ),
+                      const SizedBox(height: 12),
+                      ElevatedButton(
+                        onPressed: openAddRoomDialog,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.black,
+                          minimumSize: const Size(double.infinity, 45),
+                        ),
+                        child: const Text('Add Room', style: TextStyle(color: Colors.white)),
+                      ),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  child: RefreshIndicator(
+                    onRefresh: fetchRooms,
+                    child: ListView.builder(
                       padding: const EdgeInsets.all(12),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  r['name'],
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 15,
-                                  ),
-                                ),
-                              ),
-                              Row(
-                                children: [
-                                  // Availability control: tapping or toggling changes r['free']
-                                  GestureDetector(
-                                    onTap: () => setState(() => r['free'] = !r['free']),
-                                    child: Row(
-                                      children: [
-                                        Text(
-                                          'Free',
-                                          style: TextStyle(
-                                            color: r['free'] ? Colors.green : Colors.grey,
-                                            fontSize: 15,
-                                            fontWeight: r['free'] ? FontWeight.w600 : FontWeight.normal,
-                                          ),
-                                        ),
-                                        const SizedBox(width: 8),
-                                        CupertinoSwitch(
-                                          value: r['free'],
-                                          onChanged: (v) => setState(() => r['free'] = v),
-                                          activeColor: Colors.green,
-                                        ),
-                                        const SizedBox(width: 8),
-                                        Text(
-                                          'Disable',
-                                          style: TextStyle(
-                                            color: r['free'] ? Colors.grey : Colors.red,
-                                            fontSize: 15,
-                                            fontWeight: r['free'] ? FontWeight.normal : FontWeight.w600,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
+                      itemCount: filteredRooms.length,
+                      itemBuilder: (context, index) {
+                        final r = filteredRooms[index];
+                        return Card(
+                          margin: const EdgeInsets.only(bottom: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
                           ),
-                          const SizedBox(height: 4),
-                          Text(
-                            r['desc'],
-                            style: const TextStyle(
-                              fontSize: 13,
-                              color: Colors.grey,
-                            ),
-                          ),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.end,
-                            children: [
-                              TextButton(
-                                onPressed: () => _openEditRoomPopup(r),
-                                style: TextButton.styleFrom(
-                                  foregroundColor: const Color(0xFF9747FF),
-                                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                                ),
-                                child: const Text('Edit room'),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: (r['slots'] as List).map<Widget>((slot) {
-                              return Padding(
-                                padding: const EdgeInsets.only(bottom: 4),
-                                child: Row(
+                          child: Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
                                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                   children: [
                                     Text(
-                                      slot['time'],
+                                      r['room_name'] ?? 'Unnamed Room',
                                       style: const TextStyle(
-                                        fontSize: 13,
-                                        color: Colors.grey,
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.bold,
                                       ),
                                     ),
-                                    Text(
-                                      slot['status'],
-                                      style: TextStyle(
-                                        fontSize: 13,
-                                        color: slot['status'] == 'Free'
-                                            ? Colors.green
-                                            : Colors.red,
-                                      ),
+                                    Row(
+                                      children: [
+                                        const Text('Free', style: TextStyle(fontSize: 15)),
+                                        CupertinoSwitch(
+                                          value: r['timeSlots']
+                                                  ?.values
+                                                  ?.any((s) => s == "Free") ??
+                                              false,
+                                          onChanged: (v) async {
+                                            await toggleRoomStatus(r['room_id'], v);
+                                          },
+                                          activeColor: Colors.green,
+                                        ),
+                                        const Text('Disable',
+                                            style: TextStyle(fontSize: 15)),
+                                      ],
                                     ),
                                   ],
                                 ),
-                              );
-                            }).toList(),
+                                const SizedBox(height: 6),
+                                Text(
+                                  r['room_description'] ?? '',
+                                  style: const TextStyle(fontSize: 14, color: Colors.grey),
+                                ),
+                                Align(
+                                  alignment: Alignment.centerRight,
+                                  child: TextButton(
+                                    onPressed: () => openEditDialog(r),
+                                    child: const Text('Edit Room',
+                                        style: TextStyle(color: Color(0xFF9747FF))),
+                                  ),
+                                ),
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: (r['timeSlots'] as Map<String, dynamic>)
+                                      .entries
+                                      .map<Widget>((entry) {
+                                    return Padding(
+                                      padding: const EdgeInsets.symmetric(vertical: 2),
+                                      child: Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.spaceBetween,
+                                        children: [
+                                          Text(entry.key,
+                                              style: const TextStyle(fontSize: 13)),
+                                          Text(
+                                            entry.value,
+                                            style: TextStyle(
+                                              color: entry.value == "Free"
+                                                  ? Colors.green
+                                                  : Colors.red,
+                                              fontSize: 13,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  }).toList(),
+                                ),
+                              ],
+                            ),
                           ),
-                        ],
-                      ),
+                        );
+                      },
                     ),
-                  );
-                },
-              ),
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
-      ),
     );
   }
 }

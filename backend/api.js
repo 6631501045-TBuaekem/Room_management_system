@@ -3,20 +3,36 @@ const path = require('path');
 const pool = require('./config/db.js');
 const bcrypt = require('bcrypt');
 const session = require('express-session');
-const app = express();
 const mysql = require('mysql2');
+const MySQLStore = require('express-mysql-session')(session);
 
-// Add session middleware
+const app = express();
+
+// ✅ Create MySQL session store using same DB as your pool
+const sessionStore = new MySQLStore({
+  host: 'localhost',
+  port: 3306,
+  user: 'root',             // your DB username
+  password: '',             // your DB password
+  database: 'room_reservation_system' // your DB name
+}, pool.promise());          // optional: reuse your existing pool
+
+// ✅ Attach express-session middleware
 app.use(session({
-    secret: 'your-secret-key',
-    resave: true,
-    saveUninitialized: true,
-    rolling: true, // Refresh cookie expiration on every response
-    cookie: { 
-        secure: false, // Set to true if using HTTPS
-        maxAge: 24 * 60 * 60 * 1000 // 24 hours in milliseconds
-    }
+  key: 'connect.sid',        // same cookie key Express uses by default
+  secret: 'your-secret-key',
+  store: sessionStore,
+  resave: false,
+  saveUninitialized: false,
+  rolling: true,
+  cookie: {
+    secure: false,           // set true only if HTTPS
+    httpOnly: true,
+    sameSite: 'lax',         // helps with cookie reliability on mobile
+    maxAge: 24 * 60 * 60 * 1000 // 24h
+  }
 }));
+
 
 app.use('/public', express.static(path.join(__dirname, "public")));
 app.use(express.json());
