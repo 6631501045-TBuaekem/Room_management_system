@@ -117,6 +117,7 @@ class _DashboardpageState extends State<Dashboardpage> {
     };
 
     return Scaffold(
+      backgroundColor: const Color(0xFFFBF6F4),
       appBar: AppBar(
         title: const Text(
           'Dashboard',
@@ -124,6 +125,7 @@ class _DashboardpageState extends State<Dashboardpage> {
         ),
         centerTitle: true,
         foregroundColor: Colors.black,
+        backgroundColor: const Color(0xFFFBF6F4),
         elevation: 0,
         bottom: const PreferredSize(
           preferredSize: Size.fromHeight(1.0),
