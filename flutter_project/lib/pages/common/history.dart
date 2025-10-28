@@ -250,17 +250,18 @@ class __HistoryState extends State<Historypage> {
               // แต่ถ้าต้องการให้ Role 1 แสดงแค่ 'User' ใน Row เดียว ก็สามารถลบ Block นี้ทิ้งได้เลย
               if (shouldShowApprovedByBelow && !isStudent) ...[
                 // 👈 ตรวจสอบเฉพาะ Role 1 และไม่ใช่ Student
-                const SizedBox(height: 20),
+                const SizedBox(height: 35),
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     const Text(
-                      'Approver:', // เปลี่ยนหัวข้อเป็น Approver เพื่อไม่ให้ซ้ำซ้อน
+                      'Approve by ',
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
+                    SizedBox(width: 100),
                     Text(
                       entry.approvedBy!,
                       style: const TextStyle(fontSize: 18),
