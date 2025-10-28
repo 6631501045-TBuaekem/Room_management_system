@@ -15,6 +15,7 @@ class __RequestroomState extends State<Requestroompage> {
   final TextEditingController controllerSearch = TextEditingController();
 
   List<dynamic> rooms = [];
+  List<dynamic> filteredRooms = []; // for search results
   bool isLoading = true;
 
   String mapTimeSlot(String slot) {
@@ -52,6 +53,7 @@ class __RequestroomState extends State<Requestroompage> {
         final List<dynamic> data = jsonDecode(response.body);
         setState(() {
           rooms = data;
+          filteredRooms = data;          
           isLoading = false;
         });
       } else {
@@ -66,6 +68,18 @@ class __RequestroomState extends State<Requestroompage> {
         isLoading = false;
       });
     }
+  }
+  void searchRoom(String query) {
+    setState(() {
+      if (query.isEmpty) {
+        filteredRooms = rooms;
+      } else {
+        filteredRooms = rooms.where((room) {
+          final name = room['room_name']?.toLowerCase() ?? '';
+          return name.contains(query.toLowerCase());
+        }).toList();
+      }
+    });
   }
 
   Future<void> bookingRoom(int roomId, String timeSlot, String reason) async {
@@ -297,12 +311,13 @@ class __RequestroomState extends State<Requestroompage> {
                                 enabledBorder: InputBorder.none,
                               ),
                               controller: controllerSearch,
+                              onChanged: searchRoom
                             ),
                           ),
                           IconButton(
                             icon: const Icon(Icons.cancel_outlined),
                             onPressed: () {
-                              setState(() => controllerSearch.clear());
+                              setState((){ controllerSearch.clear();  searchRoom('');});
                             },
                           ),
                         ],
@@ -315,13 +330,13 @@ class __RequestroomState extends State<Requestroompage> {
                       onRefresh: fetchRooms,
                       child: ListView.builder(
                         padding: const EdgeInsets.all(10),
-                        itemCount: (rooms.length / 2).ceil(),
+                        itemCount: (filteredRooms.length / 2).ceil(),
                         itemBuilder: (context, index) {
                           final start = index * 2;
-                          final end = (start + 2 > rooms.length)
-                              ? rooms.length
+                          final end = (start + 2 > filteredRooms.length)
+                              ? filteredRooms.length
                               : start + 2;
-                          final pair = rooms.sublist(start, end);
+                          final pair = filteredRooms.sublist(start, end);
                           return buildRoomPage(pair);
                         },
                       ),
