@@ -110,9 +110,9 @@ class _DashboardpageState extends State<Dashboardpage> {
     final String displayDate = _dashboardData['date'] ?? 'Loading...';
 
     final Map<String, String> labelMap = {
-      "Free": "Free Table",
-      "Pending": "Pending Table",
-      "Reserved": "Reserve Table",
+      "Free": "Free Slots",
+      "Pending": "Pending Slots",
+      "Reserved": "Reserve Slots",
       "Disabled": "Disable Room",
     };
 
