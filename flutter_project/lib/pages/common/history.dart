@@ -90,12 +90,15 @@ class __HistoryState extends State<Historypage> {
     _fetchProfileRole(); // 🌟 ขั้นตอนที่ 1: ดึง Role จาก /profile
   }
 
-  // 🌟 ฟังก์ชันใหม่: ดึง Role Code จาก /profile
+  // 🌟 ฟังก์ชันใหม่: ดึง Role Code จาก /profile (ใช้สำหรับ initial load และ pull-to-refresh)
   Future<void> _fetchProfileRole() async {
-    setState(() {
-      _isLoading = true;
-      _error = null;
-    });
+    // ไม่ต้อง setState เพื่อ _isLoading = true ถ้าถูกเรียกจาก RefreshIndicator
+    if (!_isLoading) {
+      setState(() {
+        _isLoading = true;
+        _error = null;
+      });
+    }
 
     try {
       final http.Response response = await _apiClient.get(
@@ -106,7 +109,7 @@ class __HistoryState extends State<Historypage> {
         final Map<String, dynamic> profileData = json.decode(response.body);
         _currentRole = profileData['role'] as String?; // เก็บ Role Code จริง
         if (_currentRole != null) {
-          _fetchHistoryData(); // เมื่อได้ Role Code แล้ว ค่อยไปดึง History
+          await _fetchHistoryData(); // เมื่อได้ Role Code แล้ว ค่อยไปดึง History
         } else {
           _error = 'Failed to fetch user role from profile.';
         }
@@ -114,26 +117,25 @@ class __HistoryState extends State<Historypage> {
         _error = 'Unauthorized. Please login again.';
       } else {
         _error = 'Failed to load profile: Status ${response.statusCode}';
-        setState(() => _isLoading = false);
       }
     } catch (e) {
       _error = 'Connection error during profile fetch: $e';
-      setState(() => _isLoading = false);
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
   // ฟังก์ชันสำหรับดึงข้อมูลประวัติจาก Backend
   Future<void> _fetchHistoryData() async {
-    // ⚠️ ถ้า _currentRole เป็น null (ยังดึงไม่ได้) จะไม่ควรทำงานต่อ
     if (_currentRole == null) {
-      setState(() {
-        _isLoading = false;
-        _error = _error ?? 'Authentication check failed.';
-      });
+      _error = _error ?? 'Authentication check failed.';
       return;
     }
 
-    // เนื่องจาก Role ถูกดึงมาแล้ว ไม่จำเป็นต้องใช้ widget.currentRoleCode ใน logic นี้
     try {
       final http.Response response = await _apiClient.get(
         Uri.parse('$baseUrl/history/info'),
@@ -154,12 +156,6 @@ class __HistoryState extends State<Historypage> {
       }
     } catch (e) {
       _error = 'Connection error during history fetch: $e';
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
     }
   }
 
@@ -170,6 +166,7 @@ class __HistoryState extends State<Historypage> {
     final bool isRejected = entry.status == 'Reject';
     final bool isStudent = actualRole == "0";
 
+    // สถานะที่เหลือจะเป็น Approve หรือ Reject
     final Color statusColor = isRejected ? Colors.red : Colors.green;
 
     // **ตรรกะการแสดงผล Approve by (แถวแยกต่างหาก):**
@@ -342,6 +339,7 @@ class __HistoryState extends State<Historypage> {
       );
     }
 
+    // 🌟 ห่อหุ้ม bodyContent ด้วย RefreshIndicator
     return Scaffold(
       backgroundColor: const Color(0xFFFBF6F4),
       appBar: AppBar(
@@ -358,7 +356,11 @@ class __HistoryState extends State<Historypage> {
           child: Divider(color: Colors.grey, thickness: 1, height: 1),
         ),
       ),
-      body: bodyContent,
+      body: RefreshIndicator(
+        // 👈 เพิ่ม RefreshIndicator
+        onRefresh: _fetchProfileRole, // เรียกฟังก์ชันดึงข้อมูลทั้งหมดใหม่
+        child: bodyContent,
+      ),
     );
   }
 }
