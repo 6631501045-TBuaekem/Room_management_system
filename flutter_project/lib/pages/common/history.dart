@@ -70,10 +70,8 @@ class Historypage extends StatefulWidget {
 
   const Historypage({
     super.key,
-    // **เพื่อให้โค้ดนี้ทำงานร่วมกับ RoomNavigation เดิมใน main.dart ได้**
-    // เราต้องให้ currentRoleCode เป็น Optional และมีค่าเริ่มต้นเป็น "0"
-    // เพื่อไม่ให้เกิด error ที่ Historypage ถูกเรียกโดยไม่มี argument
-    this.currentRoleCode = "0",
+    // ทำให้ currentRoleCode เป็น required เพื่อบังคับให้ส่งค่าจริงมา
+    required this.currentRoleCode,
   }) : userRole = (currentRoleCode == "0")
            ? UserRole.Student
            : (currentRoleCode == "1" ? UserRole.Staff : UserRole.Approver);
@@ -134,18 +132,18 @@ class __HistoryState extends State<Historypage> {
 
     final Color statusColor = isRejected
         ? Colors.red
-        : (isApproved ? const Color.fromARGB(255, 34, 139, 34) : Colors.orange);
+        : (isApproved ? Colors.green : Colors.orange);
 
     // **ตรรกะการแสดงผล Approve by:**
     // แสดงเฉพาะเมื่อ:
     // 1. ผู้ใช้คือ Staff Role "1" เท่านั้น
-    // 2. สถานะไม่ใช่ 'Pending' (คือ Approve หรือ Reject)
+    // 2. สถานะไม่ใช่ 'Pending' (มาจาก API)
     // 3. ต้องมีชื่อ Approved by (entry.approvedBy != null)
     final bool isRole1Staff = widget.currentRoleCode == "1";
 
     final bool shouldShowApprovedBy =
-        isRole1Staff && // Role "0" (Student) และ "2" (Approver) จะเป็น False เสมอ
-        entry.status != 'Pending' && // ไม่แสดงถ้ายังรอดำเนินการ
+        isRole1Staff && // Role "0" และ "2" จะเป็น False เสมอ
+        entry.status != 'Pending' && // ต้องไม่เป็น Pending
         entry.approvedBy != null;
 
     return Column(
@@ -247,17 +245,18 @@ class __HistoryState extends State<Historypage> {
 
               // 4. Approve by Row (ถ้า shouldShowApprovedBy เป็นจริง)
               if (shouldShowApprovedBy) ...[
-                const SizedBox(height: 20),
+                const SizedBox(height: 40),
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     const Text(
-                      'Approve by',
+                      'Approve by ',
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
+                    SizedBox(width: 150),
                     Text(
                       entry.approvedBy!,
                       style: const TextStyle(fontSize: 18),
