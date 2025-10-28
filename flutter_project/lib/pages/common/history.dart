@@ -28,17 +28,13 @@ class HistoryEntry {
 
   // Factory constructor สำหรับสร้าง object จาก JSON response ของ /history/info
   factory HistoryEntry.fromJson(Map<String, dynamic> json) {
-    // รวม booking_date (DD/MM/YY) และ booking_time (HH:MM) จาก API
     final String fullDateTime =
         '${json['booking_date']} ${json['booking_time']}';
-
-    // แปลงสถานะจาก database (all lowercase) ให้ขึ้นต้นด้วยตัวใหญ่
     final String status = json['status'] as String;
     final String formattedStatus =
         status.substring(0, 1).toUpperCase() +
         status.substring(1).toLowerCase();
 
-    // **ตรรกะสำหรับ ApprovedBy:**
     final String? approver =
         (json['approver_name'] != '-' && json['approver_name'] != null)
         ? json['approver_name'] as String?
@@ -67,10 +63,13 @@ class Historypage extends StatefulWidget {
   final UserRole userRole;
   final String currentRoleCode; // "0", "1", "2"
 
-  const Historypage({super.key, required this.currentRoleCode})
-    : userRole = (currentRoleCode == "0")
-          ? UserRole.Student
-          : (currentRoleCode == "1" ? UserRole.Staff : UserRole.Approver);
+  const Historypage({
+    super.key,
+    // ทำให้ currentRoleCode เป็น Optional เพื่อให้ const Historypage() ใน main.dart ไม่แดง
+    this.currentRoleCode = "0",
+  }) : userRole = (currentRoleCode == "0")
+           ? UserRole.Student
+           : (currentRoleCode == "1" ? UserRole.Staff : UserRole.Approver);
 
   @override
   State<Historypage> createState() => __HistoryState();
@@ -82,19 +81,59 @@ class __HistoryState extends State<Historypage> {
   bool _isLoading = true;
   String? _error;
 
+  // 🌟 State ใหม่: สำหรับเก็บ Role Code ที่ดึงมาจาก API /profile
+  String? _currentRole;
+
   @override
   void initState() {
     super.initState();
-    _fetchHistoryData();
+    _fetchProfileRole(); // 🌟 ขั้นตอนที่ 1: ดึง Role จาก /profile
   }
 
-  // ฟังก์ชันสำหรับดึงข้อมูลประวัติจาก Backend
-  Future<void> _fetchHistoryData() async {
+  // 🌟 ฟังก์ชันใหม่: ดึง Role Code จาก /profile
+  Future<void> _fetchProfileRole() async {
     setState(() {
       _isLoading = true;
       _error = null;
     });
 
+    try {
+      final http.Response response = await _apiClient.get(
+        Uri.parse('$baseUrl/profile'),
+      );
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> profileData = json.decode(response.body);
+        _currentRole = profileData['role'] as String?; // เก็บ Role Code จริง
+        if (_currentRole != null) {
+          _fetchHistoryData(); // เมื่อได้ Role Code แล้ว ค่อยไปดึง History
+        } else {
+          _error = 'Failed to fetch user role from profile.';
+        }
+      } else if (response.statusCode == 401) {
+        _error = 'Unauthorized. Please login again.';
+      } else {
+        _error = 'Failed to load profile: Status ${response.statusCode}';
+        setState(() => _isLoading = false);
+      }
+    } catch (e) {
+      _error = 'Connection error during profile fetch: $e';
+      setState(() => _isLoading = false);
+    }
+  }
+
+  // ฟังก์ชันสำหรับดึงข้อมูลประวัติจาก Backend
+  Future<void> _fetchHistoryData() async {
+    // ⚠️ ถ้า _currentRole เป็น null (ยังดึงไม่ได้) จะไม่ควรทำงานต่อ
+    if (_currentRole == null) {
+      setState(() {
+        _isLoading = false;
+        _error = _error ?? 'Authentication check failed.';
+      });
+      return;
+    }
+
+    // เนื่องจาก Role ถูกดึงมาแล้ว ไม่จำเป็นต้องใช้ widget.currentRoleCode ใน logic นี้
     try {
       final http.Response response = await _apiClient.get(
         Uri.parse('$baseUrl/history/info'),
@@ -106,7 +145,7 @@ class __HistoryState extends State<Historypage> {
             .map((json) => HistoryEntry.fromJson(json))
             .where(
               (entry) => entry.status != 'Pending',
-            ) // 👈 กรองสถานะ Pending ออก
+            ) // กรองสถานะ Pending ออก
             .toList();
       } else if (response.statusCode == 401) {
         _error = 'Unauthorized. Please login again.';
@@ -114,7 +153,7 @@ class __HistoryState extends State<Historypage> {
         _error = 'Failed to load history: Status ${response.statusCode}';
       }
     } catch (e) {
-      _error = 'Connection error: $e';
+      _error = 'Connection error during history fetch: $e';
     } finally {
       if (mounted) {
         setState(() {
@@ -126,25 +165,25 @@ class __HistoryState extends State<Historypage> {
 
   // Widget สำหรับสร้างรายการประวัติแต่ละบล็อก
   Widget _buildHistoryItem(HistoryEntry entry) {
+    // 🌟 ใช้ _currentRole แทน widget.currentRoleCode
+    final String actualRole = _currentRole ?? '0';
     final bool isRejected = entry.status == 'Reject';
-    final bool isStudent = widget.userRole == UserRole.Student;
+    final bool isStudent = actualRole == "0";
 
-    final Color statusColor = isRejected
-        ? Colors.red
-        : Colors.green; // ถ้าไม่ใช่ Reject ก็คือ Approve
+    final Color statusColor = isRejected ? Colors.red : Colors.green;
 
     // **ตรรกะการแสดงผล Approve by (แถวแยกต่างหาก):**
     // แสดงเฉพาะ Staff Role "1" ที่มีการอนุมัติ/ปฏิเสธแล้วเท่านั้น
-    final bool isRole1Staff = widget.currentRoleCode == "1";
+    final bool isRole1Staff = actualRole == "1";
 
     final bool shouldShowApprovedByBelow =
-        isRole1Staff && entry.approvedBy != null; // ไม่ต้องเช็ค Pending แล้ว
+        isRole1Staff && entry.approvedBy != null;
 
     // กำหนดหัวข้อคอลัมน์ที่ 3 และข้อมูล
     final String thirdColumnHeader = isStudent ? 'Approve by' : 'User';
     final String thirdColumnData = isStudent
-        ? (entry.approvedBy ?? '-') // ถ้า Student แสดง ApprovedBy
-        : entry.user; // ถ้า Staff/Approver แสดง User
+        ? (entry.approvedBy ?? '-')
+        : entry.user;
 
     return Column(
       children: [
@@ -246,18 +285,17 @@ class __HistoryState extends State<Historypage> {
 
               // 4. Approve by Row (แถวแยกต่างหาก - เฉพาะ Staff Role 1)
               if (shouldShowApprovedByBelow && !isStudent) ...[
-                const SizedBox(height: 35),
+                const SizedBox(height: 20),
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     const Text(
-                      'Approve by ',
+                      'Approver:',
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-                    SizedBox(width: 100),
                     Text(
                       entry.approvedBy!,
                       style: const TextStyle(fontSize: 18),
@@ -286,7 +324,7 @@ class __HistoryState extends State<Historypage> {
     } else if (_error != null) {
       bodyContent = Center(
         child: Text(
-          'Error: $_error\nRole Code: ${widget.currentRoleCode}\n\nTry checking server or login status.',
+          'Error: $_error\n\nTry checking server or login status.',
           textAlign: TextAlign.center,
         ),
       );

@@ -11,6 +11,7 @@ import 'pages/approver/approve.dart';
 
 void main() => runApp(const RoomApp());
 
+
 class RoomApp extends StatelessWidget {
   const RoomApp({super.key});
 
@@ -25,7 +26,7 @@ class RoomApp extends StatelessWidget {
 
 class RoomNavigation extends StatefulWidget {
   final String userRole;
-
+  
   const RoomNavigation({super.key, required this.userRole});
 
   @override
@@ -50,69 +51,57 @@ class _RoomNavigationState extends State<RoomNavigation> {
           const Browseroompage(),
           const Requestroompage(),
           const Checkroompage(),
-          Historypage(currentRoleCode: widget.userRole),
+          const Historypage(),
           const Profilepage(),
         ];
         _navigationItems = const [
           BottomNavigationBarItem(icon: Icon(Icons.search), label: 'Browse'),
           BottomNavigationBarItem(icon: Icon(Icons.outbox), label: 'Request'),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.check_circle),
-            label: 'Check',
-          ),
+          BottomNavigationBarItem(icon: Icon(Icons.check_circle), label: 'Check'),
           BottomNavigationBarItem(icon: Icon(Icons.article), label: 'History'),
           BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
         ];
         break;
-
+      
       case "1": // Staff
         _pages = [
           const Browseroompage(),
           const Manageroompage(),
           const Dashboardpage(),
-          Historypage(currentRoleCode: widget.userRole),
+          const Historypage(),
           const Profilepage(),
         ];
         _navigationItems = const [
           BottomNavigationBarItem(icon: Icon(Icons.search), label: 'Browse'),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.settings),
-            label: 'Add/Edit',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.space_dashboard),
-            label: 'Dashboard',
-          ),
+          BottomNavigationBarItem(icon: Icon(Icons.settings), label: 'Add/Edit'),
+          BottomNavigationBarItem(icon: Icon(Icons.space_dashboard), label: 'Dashboard'),
           BottomNavigationBarItem(icon: Icon(Icons.article), label: 'History'),
           BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
         ];
         break;
-
+      
       case "2": // Approver
         _pages = [
           const Browseroompage(),
           const Approvepage(),
           const Dashboardpage(),
-          Historypage(currentRoleCode: widget.userRole),
+          const Historypage(),
           const Profilepage(),
         ];
         _navigationItems = const [
           BottomNavigationBarItem(icon: Icon(Icons.search), label: 'Browse'),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.check_circle),
-            label: 'Approve',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.space_dashboard),
-            label: 'Dashboard',
-          ),
+          BottomNavigationBarItem(icon: Icon(Icons.check_circle), label: 'Approve'),
+          BottomNavigationBarItem(icon: Icon(Icons.space_dashboard), label: 'Dashboard'),
           BottomNavigationBarItem(icon: Icon(Icons.article), label: 'History'),
           BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
         ];
         break;
-
+      
       default:
-        _pages = [const Browseroompage(), const Profilepage()];
+        _pages = [
+          const Browseroompage(),
+          const Profilepage(),
+        ];
         _navigationItems = const [
           BottomNavigationBarItem(icon: Icon(Icons.search), label: 'Browse'),
           BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
