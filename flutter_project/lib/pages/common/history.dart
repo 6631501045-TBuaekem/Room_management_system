@@ -285,17 +285,18 @@ class __HistoryState extends State<Historypage> {
 
               // 4. Approve by Row (แถวแยกต่างหาก - เฉพาะ Staff Role 1)
               if (shouldShowApprovedByBelow && !isStudent) ...[
-                const SizedBox(height: 20),
+                const SizedBox(height: 35),
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     const Text(
-                      'Approver:',
+                      'Approve by ',
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
+                    SizedBox(width: 100),
                     Text(
                       entry.approvedBy!,
                       style: const TextStyle(fontSize: 18),
@@ -350,7 +351,6 @@ class __HistoryState extends State<Historypage> {
         centerTitle: true,
         foregroundColor: Colors.black,
         elevation: 0,
-        backgroundColor: Colors.white,
         bottom: const PreferredSize(
           preferredSize: Size.fromHeight(1.0),
           child: Divider(color: Colors.grey, thickness: 1, height: 1),
