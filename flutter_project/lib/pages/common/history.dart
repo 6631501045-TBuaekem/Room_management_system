@@ -343,6 +343,7 @@ class __HistoryState extends State<Historypage> {
     }
 
     return Scaffold(
+      backgroundColor: const Color(0xFFFBF6F4),
       appBar: AppBar(
         title: Text(
           'History',
@@ -351,6 +352,7 @@ class __HistoryState extends State<Historypage> {
         centerTitle: true,
         foregroundColor: Colors.black,
         elevation: 0,
+        backgroundColor: const Color(0xFFFBF6F4),
         bottom: const PreferredSize(
           preferredSize: Size.fromHeight(1.0),
           child: Divider(color: Colors.grey, thickness: 1, height: 1),
