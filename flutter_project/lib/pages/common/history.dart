@@ -39,7 +39,6 @@ class HistoryEntry {
         status.substring(1).toLowerCase();
 
     // **ตรรกะสำหรับ ApprovedBy:**
-    // ดึงค่า approver_name ออกมา ถ้าเป็น "-" หรือ null จะถือว่าเป็น null
     final String? approver =
         (json['approver_name'] != '-' && json['approver_name'] != null)
         ? json['approver_name'] as String?
@@ -68,13 +67,10 @@ class Historypage extends StatefulWidget {
   final UserRole userRole;
   final String currentRoleCode; // "0", "1", "2"
 
-  const Historypage({
-    super.key,
-    // ทำให้ currentRoleCode เป็น required เพื่อบังคับให้ส่งค่าจริงมา
-    required this.currentRoleCode,
-  }) : userRole = (currentRoleCode == "0")
-           ? UserRole.Student
-           : (currentRoleCode == "1" ? UserRole.Staff : UserRole.Approver);
+  const Historypage({super.key, required this.currentRoleCode})
+    : userRole = (currentRoleCode == "0")
+          ? UserRole.Student
+          : (currentRoleCode == "1" ? UserRole.Staff : UserRole.Approver);
 
   @override
   State<Historypage> createState() => __HistoryState();
@@ -129,22 +125,24 @@ class __HistoryState extends State<Historypage> {
   Widget _buildHistoryItem(HistoryEntry entry) {
     final bool isApproved = entry.status == 'Approve';
     final bool isRejected = entry.status == 'Reject';
+    final bool isStudent =
+        widget.userRole == UserRole.Student; // 👈 ตรวจสอบ Role Student
 
     final Color statusColor = isRejected
         ? Colors.red
         : (isApproved ? Colors.green : Colors.orange);
 
-    // **ตรรกะการแสดงผล Approve by:**
-    // แสดงเฉพาะเมื่อ:
-    // 1. ผู้ใช้คือ Staff Role "1" เท่านั้น
-    // 2. สถานะไม่ใช่ 'Pending' (มาจาก API)
-    // 3. ต้องมีชื่อ Approved by (entry.approvedBy != null)
+    // **ตรรกะการแสดงผล Approve by เดิม (ใช้สำหรับ Staff Role 1 เท่านั้น):**
     final bool isRole1Staff = widget.currentRoleCode == "1";
 
-    final bool shouldShowApprovedBy =
-        isRole1Staff && // Role "0" และ "2" จะเป็น False เสมอ
-        entry.status != 'Pending' && // ต้องไม่เป็น Pending
-        entry.approvedBy != null;
+    final bool shouldShowApprovedByBelow =
+        isRole1Staff && entry.status != 'Pending' && entry.approvedBy != null;
+
+    // กำหนดหัวข้อคอลัมน์ที่ 3 และข้อมูล
+    final String thirdColumnHeader = isStudent ? 'Approve by' : 'User';
+    final String thirdColumnData = isStudent
+        ? (entry.approvedBy ?? '-') // ถ้าเป็น Student ให้แสดง ApprovedBy
+        : entry.user; // ถ้าเป็น Staff/Approver ให้แสดง User
 
     return Column(
       children: [
@@ -170,10 +168,10 @@ class __HistoryState extends State<Historypage> {
               ),
               const SizedBox(height: 30),
 
-              // 2. Column Headers and Data (Date/Time, status, User)
-              const Row(
+              // 2. Column Headers (Date/Time, status, User/Approve by)
+              Row(
                 children: [
-                  Expanded(
+                  const Expanded(
                     flex: 3,
                     child: Text(
                       'Date/Time',
@@ -184,7 +182,7 @@ class __HistoryState extends State<Historypage> {
                       textAlign: TextAlign.center,
                     ),
                   ),
-                  Expanded(
+                  const Expanded(
                     flex: 4,
                     child: Text(
                       'Status',
@@ -196,10 +194,11 @@ class __HistoryState extends State<Historypage> {
                     ),
                   ),
                   Expanded(
+                    // 👈 แก้ไขหัวข้อคอลัมน์ที่ 3
                     flex: 3,
                     child: Text(
-                      'User',
-                      style: TextStyle(
+                      thirdColumnHeader, // 'User' หรือ 'Approve by'
+                      style: const TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 18,
                       ),
@@ -210,6 +209,7 @@ class __HistoryState extends State<Historypage> {
               ),
               const SizedBox(height: 15),
 
+              // 3. Data Row
               Row(
                 children: [
                   Expanded(
@@ -233,9 +233,10 @@ class __HistoryState extends State<Historypage> {
                     ),
                   ),
                   Expanded(
+                    // 👈 แก้ไขข้อมูลคอลัมน์ที่ 3
                     flex: 3,
                     child: Text(
-                      entry.user,
+                      thirdColumnData, // ชื่อผู้จอง หรือ ชื่อผู้อนุมัติ
                       style: const TextStyle(fontSize: 18),
                       textAlign: TextAlign.center,
                     ),
@@ -243,20 +244,23 @@ class __HistoryState extends State<Historypage> {
                 ],
               ),
 
-              // 4. Approve by Row (ถ้า shouldShowApprovedBy เป็นจริง)
-              if (shouldShowApprovedBy) ...[
-                const SizedBox(height: 40),
+              // 4. Approve by Row (สำหรับ Staff Role 1 ที่ต้องการแสดงข้อมูลซ้ำซ้อน)
+              // Note: ถ้าคุณต้องการให้ Role 1 แสดง 'Approve by' ใน Row แยกต่างหาก
+              // เหมือนที่โค้ดเดิมพยายามทำ ให้ใช้ shouldShowApprovedByBelow
+              // แต่ถ้าต้องการให้ Role 1 แสดงแค่ 'User' ใน Row เดียว ก็สามารถลบ Block นี้ทิ้งได้เลย
+              if (shouldShowApprovedByBelow && !isStudent) ...[
+                // 👈 ตรวจสอบเฉพาะ Role 1 และไม่ใช่ Student
+                const SizedBox(height: 20),
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     const Text(
-                      'Approve by ',
+                      'Approver:', // เปลี่ยนหัวข้อเป็น Approver เพื่อไม่ให้ซ้ำซ้อน
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-                    SizedBox(width: 150),
                     Text(
                       entry.approvedBy!,
                       style: const TextStyle(fontSize: 18),
