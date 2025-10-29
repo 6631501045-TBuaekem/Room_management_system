@@ -77,7 +77,7 @@ class _RegisterpageState extends State<Registerpage> {
                     'Register',
                     style: TextStyle(
                       fontSize: 22,
-                      color: const Color.fromARGB(255, 87, 85, 85),
+                      color: const Color.fromARGB(255, 68, 68, 68),
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -156,7 +156,7 @@ class _RegisterpageState extends State<Registerpage> {
                     child: const Text(
                       'Back to login',
                       style: TextStyle(
-                        fontSize: 15,
+                        fontSize: 18,
                         color: Color.fromARGB(255, 198, 212, 198),
                         fontWeight: FontWeight.bold,
                         decoration: TextDecoration.underline,
