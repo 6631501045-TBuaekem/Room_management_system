@@ -281,7 +281,7 @@ class _ManageroompageState extends State<Manageroompage> {
                                 const SizedBox(height: 6),
                                 Text(
                                   r['room_description'] ?? '',
-                                  style: const TextStyle(fontSize: 14, color: Colors.grey),
+                                  style: const TextStyle(fontSize: 14, color: Color.fromARGB(255, 82, 81, 81)),
                                 ),
                                 Align(
                                   alignment: Alignment.centerRight,
