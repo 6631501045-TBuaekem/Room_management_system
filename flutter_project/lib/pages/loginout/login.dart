@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../../main.dart';
 import 'register.dart';
+import '../../utills/session_cilent.dart'; 
+final session = SessionHttpClient();
 
 class Loginpage extends StatefulWidget {
   const Loginpage({super.key});
@@ -25,7 +27,7 @@ class _LoginpageState extends State<Loginpage> {
   void login() async {
     final body = {"username": _controller1.text, "password": _controller2.text};
     final url = Uri.parse('http://10.0.2.2:3005/login');
-    final response = await http.post(url, body: jsonEncode(body), headers:{"Content-Type": "application/json"},);
+    final response = await session.post(url, body: jsonEncode(body));
     if(response.statusCode == 200){
       final data = jsonDecode(response.body);
       final userRole = data['role'];
