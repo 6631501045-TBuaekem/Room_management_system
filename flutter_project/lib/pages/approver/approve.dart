@@ -10,7 +10,6 @@ class Approvepage extends StatefulWidget {
 }
 
 class _ApprovepageState extends State<Approvepage> {
-  int _selectedIndex = 1;
 
   @override
   Widget build(BuildContext context) {
