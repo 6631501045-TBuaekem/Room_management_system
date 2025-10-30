@@ -130,6 +130,8 @@ class _BrowseRoomPageState extends State<Browseroompage> {
 
                     // 🏠 Room List
                     Expanded(
+                      child: RefreshIndicator(
+                      onRefresh: _fetchRooms, // function to call when user pulls down
                       child: filteredRooms.isEmpty
                           ? const Center(
                               child: Text(
@@ -169,6 +171,7 @@ class _BrowseRoomPageState extends State<Browseroompage> {
                                 );
                               },
                             ),
+                    ),
                     ),
                   ],
                 ),
