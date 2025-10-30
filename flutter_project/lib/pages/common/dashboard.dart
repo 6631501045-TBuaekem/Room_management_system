@@ -110,9 +110,9 @@ class _DashboardpageState extends State<Dashboardpage> {
     final String displayDate = _dashboardData['date'] ?? 'Loading...';
 
     final Map<String, String> labelMap = {
-      "Free": "Free Table",
-      "Pending": "Pending Table",
-      "Reserved": "Reserve Table",
+      "Free": "Free Slots",
+      "Pending": "Pending Slots",
+      "Reserved": "Reserve Slots",
       "Disabled": "Disable Room",
     };
 
@@ -169,7 +169,7 @@ class _DashboardpageState extends State<Dashboardpage> {
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Text(
-                              'ไม่สามารถเชื่อมต่อ API หรือดึงข้อมูลได้: ${snapshot.error}',
+                              'Failed to load data from API: ${snapshot.error}',
                               style: const TextStyle(
                                 color: Colors.red,
                                 fontSize: 16,
@@ -180,7 +180,7 @@ class _DashboardpageState extends State<Dashboardpage> {
                             ElevatedButton.icon(
                               onPressed: _onRefresh,
                               icon: const Icon(Icons.refresh),
-                              label: const Text('ลองใหม่'),
+                              label: const Text('Retry'),
                             ),
                           ],
                         ),
