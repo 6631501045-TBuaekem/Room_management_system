@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:convert';
-import 'dart:math'; // 🟢 นำเข้า math เพื่อใช้ ceil()
 import '../../utills/session_cilent.dart'; // นำเข้า SessionHttpClient
-import 'package:http/http.dart' as http; // 🟢 เพิ่ม http เพื่อใช้ในการดึงข้อมูล
 
 // 🟢 Global Singleton Instance: ใช้ตัวเดียวกับที่ Loginpage ใช้งาน
 final session = SessionHttpClient();
@@ -15,11 +13,13 @@ class Dashboardpage extends StatefulWidget {
 }
 
 class _DashboardpageState extends State<Dashboardpage> {
+  // ใช้ Map<String, dynamic> เก็บข้อมูลที่ได้จาก API
   Map<String, dynamic> _dashboardData = {};
+
+  // 🟢 ใช้ Future<void> ที่สามารถถูกอัปเดตได้
   late Future<void> _fetchDataFuture;
 
-  // 🟢 เก็บ Role ของผู้ใช้ (ใช้ในการตัดสินใจดึง Total Rooms)
-  String _userRole = '0'; // Default to student role
+  // 🔴 ลบ: ตัวแปร String _userRole ถูกลบออก
 
   final Map<String, Color> colorMap = {
     "Total": const Color(0xFF554440),
@@ -35,34 +35,10 @@ class _DashboardpageState extends State<Dashboardpage> {
   @override
   void initState() {
     super.initState();
-    // 🔴 เริ่มต้นด้วยการดึง Future ที่ซ้อนกัน
-    _fetchDataFuture = _fetchInitialData();
+    _fetchDataFuture = fetchSlotData();
   }
 
-  // 🟢 ฟังก์ชันใหม่: ดึง Profile และตัดสินใจว่าจะใช้การดึงข้อมูลแบบใด
-  Future<void> _fetchInitialData() async {
-    // 1. ดึง Profile เพื่อหา Role
-    try {
-      final profileUrl = Uri.parse('$baseUrl/profile');
-      final profileResponse = await session.get(profileUrl);
-
-      if (profileResponse.statusCode == 200) {
-        final profileData = json.decode(profileResponse.body);
-        // อัปเดต Role
-        if (mounted) {
-          _userRole = profileData['role'] ?? '0';
-        }
-      }
-    } catch (e) {
-      print('Error fetching profile: $e');
-      // อนุญาตให้เรียก fetchSlotData ต่อไป แม้ดึง role ไม่ได้ (จะใช้การประมาณค่า)
-    }
-
-    // 2. เรียก fetchSlotData ด้วย Role ที่มีอยู่
-    return fetchSlotData();
-  }
-
-  // 🟢 ฟังก์ชันหลักในการดึงข้อมูลและคำนวณ Total Rooms
+  // ฟังก์ชันหลักในการดึงข้อมูลและคำนวณ Total Rooms
   Future<void> fetchSlotData() async {
     final slotUrl = Uri.parse('$baseUrl/slotdashboard');
     int totalRoomsCount;
@@ -87,11 +63,9 @@ class _DashboardpageState extends State<Dashboardpage> {
         final int activeSlotsCount = freeCount + pendingCount + reservedCount;
 
         // 2. คำนวณ Available Rooms (Active Slots / 4)
-        // Available Rooms = Active Slots Count / 4 (ปัดขึ้น)
         availableRoomsCount = (activeSlotsCount / 4).ceil();
 
         // 3. คำนวณ Total Rooms (Available Rooms + Disabled Rooms)
-        // Total Rooms = Available Rooms (จากการคำนวณ) + Disabled Rooms Count (จาก API)
         totalRoomsCount = availableRoomsCount + disabledRoomsCount;
 
         // ป้องกันไม่ให้ค่าน้อยกว่าศูนย์
@@ -102,7 +76,6 @@ class _DashboardpageState extends State<Dashboardpage> {
         if (mounted) {
           setState(() {
             _dashboardData = {
-              // ใช้ Total Rooms ที่คำนวณจาก Available + Disabled
               "Total": {"count": totalRoomsCount, "key": "Total"},
               "Available": {"count": availableRoomsCount, "key": "Available"},
 
@@ -133,7 +106,7 @@ class _DashboardpageState extends State<Dashboardpage> {
     }
   }
 
-  // Pull-to-Refresh
+  // ฟังก์ชันที่ถูกเรียกเมื่อผู้ใช้ดึงหน้าจอลง (Pull-to-Refresh)
   Future<void> _onRefresh() async {
     setState(() {
       _fetchDataFuture = fetchSlotData();
@@ -141,7 +114,7 @@ class _DashboardpageState extends State<Dashboardpage> {
     return _fetchDataFuture;
   }
 
-  // Free, Pending, Reserved
+  // 🔴 Widget (Free, Pending, Reserved)
   Widget _buildStatusTile(String key, String label, Map<String, dynamic> data) {
     final item = data[key] as Map<String, dynamic>?;
     final count = item?['count']?.toString() ?? '0';
@@ -150,7 +123,7 @@ class _DashboardpageState extends State<Dashboardpage> {
     return Container(
       decoration: BoxDecoration(
         color: color,
-        borderRadius: BorderRadius.circular(20), // ปรับให้มนเล็กน้อย
+        borderRadius: BorderRadius.circular(20),
       ),
       child: Center(
         child: Column(
@@ -159,7 +132,7 @@ class _DashboardpageState extends State<Dashboardpage> {
             Text(
               count,
               style: const TextStyle(
-                fontSize: 80, // ลดขนาดตัวเลขเพื่อให้พอดี
+                fontSize: 80,
                 fontWeight: FontWeight.bold,
                 color: Colors.white,
               ),
@@ -176,7 +149,7 @@ class _DashboardpageState extends State<Dashboardpage> {
     );
   }
 
-  //  Widget สำหรับสร้างกล่องย่อยภายใน Total Room (Available/Disabled)
+  //  Widget Total Room (Available/Disabled)
   Widget _buildSubTile(String key, String label, Map<String, dynamic> data) {
     final item = data[key] as Map<String, dynamic>?;
     final count = item?['count']?.toString() ?? '0';
@@ -184,7 +157,7 @@ class _DashboardpageState extends State<Dashboardpage> {
 
     return Expanded(
       child: Container(
-        height: 60, // กำหนดความสูง
+        height: 60,
         decoration: BoxDecoration(
           color: color,
           borderRadius: BorderRadius.circular(10),
@@ -217,9 +190,9 @@ class _DashboardpageState extends State<Dashboardpage> {
     );
   }
 
-  // 🔴 Widget สำหรับสร้างกล่องรวม Total Room
+  // Widget Total Room
   Widget _buildTotalRoomSection(Map<String, dynamic> data) {
-    // 🔴 ใช้ค่า Total และ Disabled ที่คำนวณ/ดึงมา
+    // Total และ Disabled ที่คำนวณ/ดึงมา
     final totalItem = data['Total'] as Map<String, dynamic>?;
     final totalCount = totalItem?['count']?.toString() ?? '0';
     final totalColor = colorMap['Total'] ?? Colors.grey;
@@ -267,7 +240,7 @@ class _DashboardpageState extends State<Dashboardpage> {
               children: [
                 _buildSubTile("Available", "Available Rooms", data),
                 const SizedBox(height: 15),
-                _buildSubTile("Disabled", "Disable Rooms", data),
+                _buildSubTile("Disabled", "Disable Room", data),
               ],
             ),
           ),
@@ -366,10 +339,10 @@ class _DashboardpageState extends State<Dashboardpage> {
                   crossAxisAlignment: CrossAxisAlignment.center,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // 🔴 ส่วนแสดงวันที่
+                    // ส่วนแสดงวันที่
                     Text(
                       "Dashboard of all rooms : Today ($displayDate)",
-                      style: const TextStyle(fontSize: 30),
+                      style: const TextStyle(fontSize: 25),
                     ),
                     const SizedBox(height: 20),
 
