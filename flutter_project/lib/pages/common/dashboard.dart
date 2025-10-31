@@ -261,7 +261,7 @@ class _DashboardpageState extends State<Dashboardpage> {
     final List<String> tileKeys = ["Free", "Pending", "Reserved"];
 
     return Scaffold(
-      backgroundColor: const Color(0xFFFAF9F8), // พื้นหลังอ่อนๆ ตามภาพ
+      backgroundColor: const Color(0xFFFBF6F4),
       appBar: AppBar(
         title: const Text(
           'Dashboard',
@@ -339,11 +339,12 @@ class _DashboardpageState extends State<Dashboardpage> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     // ส่วนแสดงวันที่
+                    const SizedBox(height: 15),
                     Text(
                       "Dashboard of all rooms : Today ($displayDate)",
-                      style: const TextStyle(fontSize: 25),
+                      style: const TextStyle(fontSize: 28),
                     ),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 30),
 
                     // 1. กล่องใหญ่ Total Room
                     _buildTotalRoomSection(_dashboardData),
@@ -383,7 +384,7 @@ class _DashboardpageState extends State<Dashboardpage> {
 
                     // Row ที่สอง: Reserved (ยาวเต็มความกว้าง)
                     AspectRatio(
-                      aspectRatio: 3,
+                      aspectRatio: 2.5,
                       child: _buildStatusTile(
                         tileKeys[2],
                         tileLabels[tileKeys[2]]!,
