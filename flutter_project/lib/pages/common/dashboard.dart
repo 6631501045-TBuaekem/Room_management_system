@@ -152,36 +152,34 @@ class _DashboardpageState extends State<Dashboardpage> {
     final count = item?['count']?.toString() ?? '0';
     final color = colorMap[key] ?? Colors.grey;
 
-    return Expanded(
-      child: Container(
-        height: 80,
-        decoration: BoxDecoration(
-          color: color,
-          borderRadius: BorderRadius.circular(10),
-        ),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-        child: Center(
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                label,
-                style: const TextStyle(
-                  fontSize: 20,
-                  color: Colors.white,
-                  fontWeight: FontWeight.w500,
-                ),
+    return Container(
+      height: double.infinity,
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(15),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 5),
+      child: Center(
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 20,
+                color: Colors.white,
+                fontWeight: FontWeight.w500,
               ),
-              Text(
-                count,
-                style: const TextStyle(
-                  fontSize: 30,
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                ),
+            ),
+            Text(
+              count,
+              style: const TextStyle(
+                fontSize: 30,
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -197,7 +195,7 @@ class _DashboardpageState extends State<Dashboardpage> {
     return Container(
       padding: const EdgeInsets.all(20),
       margin: const EdgeInsets.only(bottom: 20),
-      height: 200, // <-- ปรับความสูงจาก 250 เป็น 350 เพื่อให้มีพื้นที่มากขึ้น
+      height: 200,
       decoration: BoxDecoration(
         color: totalColor,
         borderRadius: BorderRadius.circular(25),
@@ -228,6 +226,7 @@ class _DashboardpageState extends State<Dashboardpage> {
               ),
             ],
           ),
+          SizedBox(height: 20),
           // Row ที่สอง: Available และ Disable Tiles
           Expanded(
             child: Row(
