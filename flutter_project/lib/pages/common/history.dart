@@ -294,12 +294,13 @@ class __HistoryState extends State<Historypage> {
               const SizedBox(height: 10),
               Row(
                 // 🌟 ปรับเป็น spaceBetween
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   const Text(
-                    'Approved by:',
+                    'Approved by: ',
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
+                  SizedBox(width: 120),
                   // ลบ SizedBox(width: 100) ทิ้ง เพราะใช้ mainAxisAlignment: spaceBetween
                   Text(entry.approvedBy!, style: const TextStyle(fontSize: 18)),
                 ],
