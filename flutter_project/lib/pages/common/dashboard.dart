@@ -19,8 +19,6 @@ class _DashboardpageState extends State<Dashboardpage> {
   // 🟢 ใช้ Future<void> ที่สามารถถูกอัปเดตได้
   late Future<void> _fetchDataFuture;
 
-  // 🔴 ลบ: ตัวแปร String _userRole ถูกลบออก
-
   final Map<String, Color> colorMap = {
     "Total": const Color(0xFF554440),
     "Available": const Color(0xFF00A550),
@@ -78,7 +76,6 @@ class _DashboardpageState extends State<Dashboardpage> {
             _dashboardData = {
               "Total": {"count": totalRoomsCount, "key": "Total"},
               "Available": {"count": availableRoomsCount, "key": "Available"},
-
               "Free": {"count": freeCount, "key": "Free"},
               "Pending": {"count": pendingCount, "key": "Pending"},
               "Reserved": {"count": reservedCount, "key": "Reserved"},
@@ -114,7 +111,7 @@ class _DashboardpageState extends State<Dashboardpage> {
     return _fetchDataFuture;
   }
 
-  // 🔴 Widget (Free, Pending, Reserved)
+  // Widget (Free, Pending, Reserved)
   Widget _buildStatusTile(String key, String label, Map<String, dynamic> data) {
     final item = data[key] as Map<String, dynamic>?;
     final count = item?['count']?.toString() ?? '0';
@@ -157,7 +154,7 @@ class _DashboardpageState extends State<Dashboardpage> {
 
     return Expanded(
       child: Container(
-        height: 60,
+        height: 80,
         decoration: BoxDecoration(
           color: color,
           borderRadius: BorderRadius.circular(10),
@@ -170,7 +167,7 @@ class _DashboardpageState extends State<Dashboardpage> {
               Text(
                 label,
                 style: const TextStyle(
-                  fontSize: 18,
+                  fontSize: 20,
                   color: Colors.white,
                   fontWeight: FontWeight.w500,
                 ),
@@ -178,7 +175,7 @@ class _DashboardpageState extends State<Dashboardpage> {
               Text(
                 count,
                 style: const TextStyle(
-                  fontSize: 25,
+                  fontSize: 30,
                   color: Colors.white,
                   fontWeight: FontWeight.bold,
                 ),
@@ -200,7 +197,7 @@ class _DashboardpageState extends State<Dashboardpage> {
     return Container(
       padding: const EdgeInsets.all(20),
       margin: const EdgeInsets.only(bottom: 20),
-      height: 250, // กำหนดความสูงให้ใหญ่ขึ้นตามภาพ
+      height: 200, // <-- ปรับความสูงจาก 250 เป็น 350 เพื่อให้มีพื้นที่มากขึ้น
       decoration: BoxDecoration(
         color: totalColor,
         borderRadius: BorderRadius.circular(25),
@@ -221,7 +218,6 @@ class _DashboardpageState extends State<Dashboardpage> {
                   color: Colors.white,
                 ),
               ),
-              // สามารถแสดง Total Count ตรงนี้ได้ หากต้องการ
               Text(
                 totalCount,
                 style: const TextStyle(
@@ -232,15 +228,18 @@ class _DashboardpageState extends State<Dashboardpage> {
               ),
             ],
           ),
-          const SizedBox(height: 20),
           // Row ที่สอง: Available และ Disable Tiles
           Expanded(
-            child: Column(
+            child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                _buildSubTile("Available", "Available Rooms", data),
-                const SizedBox(height: 15),
-                _buildSubTile("Disabled", "Disable Room", data),
+                Expanded(
+                  child: _buildSubTile("Available", "Available Rooms", data),
+                ),
+                const SizedBox(width: 20),
+                Expanded(
+                  child: _buildSubTile("Disabled", "Disable Rooms", data),
+                ),
               ],
             ),
           ),
@@ -253,7 +252,7 @@ class _DashboardpageState extends State<Dashboardpage> {
   Widget build(BuildContext context) {
     final String displayDate = _dashboardData['date'] ?? 'Loading...';
 
-    // 🔴 Labels สำหรับสถานะที่เหลือ
+    // Labels สำหรับสถานะที่เหลือ
     final Map<String, String> tileLabels = {
       "Free": "Free Slots",
       "Pending": "Pending Slots",
@@ -334,7 +333,7 @@ class _DashboardpageState extends State<Dashboardpage> {
                   );
                 }
 
-                // 🟢 ส่วนแสดงผล (ถ้าสำเร็จ)
+                // ส่วนแสดงผล
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   mainAxisSize: MainAxisSize.min,
@@ -350,7 +349,6 @@ class _DashboardpageState extends State<Dashboardpage> {
                     _buildTotalRoomSection(_dashboardData),
 
                     // 2. กล่องสถานะย่อย (Free, Pending, Reserved)
-                    // Row แรก: Free (ใหญ่ด้านซ้าย) + Pending (เล็กด้านขวาบน)
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -358,7 +356,7 @@ class _DashboardpageState extends State<Dashboardpage> {
                         Expanded(
                           flex: 2,
                           child: AspectRatio(
-                            aspectRatio: 1, // ปรับให้สูงขึ้น
+                            aspectRatio: 1,
                             child: _buildStatusTile(
                               tileKeys[0],
                               tileLabels[tileKeys[0]]!,
@@ -371,7 +369,7 @@ class _DashboardpageState extends State<Dashboardpage> {
                         Expanded(
                           flex: 2,
                           child: AspectRatio(
-                            aspectRatio: 1, // ปรับให้สูงขึ้น
+                            aspectRatio: 1,
                             child: _buildStatusTile(
                               tileKeys[1],
                               tileLabels[tileKeys[1]]!,
@@ -385,7 +383,7 @@ class _DashboardpageState extends State<Dashboardpage> {
 
                     // Row ที่สอง: Reserved (ยาวเต็มความกว้าง)
                     AspectRatio(
-                      aspectRatio: 3, // ปรับให้เป็นแนวนอน
+                      aspectRatio: 3,
                       child: _buildStatusTile(
                         tileKeys[2],
                         tileLabels[tileKeys[2]]!,
@@ -393,7 +391,7 @@ class _DashboardpageState extends State<Dashboardpage> {
                       ),
                     ),
 
-                    // 🟢 เพิ่ม SizedBox เพื่อให้มีพื้นที่ว่างด้านล่างสำหรับการดึง
+                    // เพิ่ม SizedBox เพื่อให้มีพื้นที่ว่างด้านล่างสำหรับการดึง
                     const SizedBox(height: 50),
                   ],
                 );
