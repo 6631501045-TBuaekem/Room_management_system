@@ -2,8 +2,7 @@ import 'package:flutter/material.dart';
 import 'dart:convert';
 import '../../main.dart';
 import 'register.dart';
-import '../../utills/session_cilent.dart';
-
+import '../../utills/session_cilent.dart'; 
 final session = SessionHttpClient();
 
 class Loginpage extends StatefulWidget {
@@ -30,7 +29,7 @@ class _LoginpageState extends State<Loginpage> {
     final body = {"username": _controller1.text, "password": _controller2.text};
     final url = Uri.parse('http://10.0.2.2:3005/login');
     final response = await session.post(url, body: jsonEncode(body));
-    if (response.statusCode == 200) {
+    if(response.statusCode == 200){
       final data = jsonDecode(response.body);
       final userRole = data['role'];
       Navigator.pushReplacement(
@@ -63,13 +62,13 @@ class _LoginpageState extends State<Loginpage> {
               children: [
                 Text(
                   'Room Reservation',
-                  style: TextStyle(fontSize: 25, fontWeight: FontWeight.bold),
+                  style: TextStyle(fontSize: 35, color: const Color.fromARGB(255, 0, 0, 0), fontWeight: FontWeight.bold),
                 ),
                 SizedBox(height: 60),
                 Text(
                   'Login',
                   style: TextStyle(
-                    fontSize: 22,
+                    fontSize: 25,
                     color: Colors.white,
                     fontWeight: FontWeight.bold,
                   ),
@@ -115,7 +114,7 @@ class _LoginpageState extends State<Loginpage> {
                         ),
                         child: const Text(
                           'Sign in',
-                          style: TextStyle(fontSize: 17, color: Colors.white),
+                          style: TextStyle(fontSize: 18, color: Colors.white),
                         ),
                       ),
                     ),
@@ -150,8 +149,8 @@ class _LoginpageState extends State<Loginpage> {
                   child: const Text(
                     'Sign up',
                     style: TextStyle(
-                      fontSize: 15,
-                      color: Colors.green,
+                      fontSize: 21,
+                      color: Color.fromARGB(255, 0, 0, 0),
                       fontWeight: FontWeight.bold,
                       decoration: TextDecoration.underline,
                     ),
