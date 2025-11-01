@@ -126,19 +126,22 @@ class _DashboardpageState extends State<Dashboardpage> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(
-              count,
-              style: const TextStyle(
-                fontSize: 80,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                count,
+                style: const TextStyle(
+                  fontSize: 70,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
               ),
             ),
             const SizedBox(height: 5),
             Text(
               label,
               textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 25, color: Colors.white),
+              style: const TextStyle(fontSize: 20, color: Colors.white),
             ),
           ],
         ),
@@ -166,7 +169,7 @@ class _DashboardpageState extends State<Dashboardpage> {
             Text(
               label,
               style: const TextStyle(
-                fontSize: 20,
+                fontSize: 15,
                 color: Colors.white,
                 fontWeight: FontWeight.w500,
               ),
@@ -174,7 +177,7 @@ class _DashboardpageState extends State<Dashboardpage> {
             Text(
               count,
               style: const TextStyle(
-                fontSize: 30,
+                fontSize: 25,
                 color: Colors.white,
                 fontWeight: FontWeight.bold,
               ),
@@ -211,7 +214,7 @@ class _DashboardpageState extends State<Dashboardpage> {
               const Text(
                 'Total Room',
                 style: TextStyle(
-                  fontSize: 30,
+                  fontSize: 25,
                   fontWeight: FontWeight.bold,
                   color: Colors.white,
                 ),
@@ -219,7 +222,7 @@ class _DashboardpageState extends State<Dashboardpage> {
               Text(
                 totalCount,
                 style: const TextStyle(
-                  fontSize: 30,
+                  fontSize: 25,
                   fontWeight: FontWeight.bold,
                   color: Colors.white,
                 ),
@@ -338,12 +341,12 @@ class _DashboardpageState extends State<Dashboardpage> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     // ส่วนแสดงวันที่
-                    const SizedBox(height: 15),
+                    const SizedBox(height: 5),
                     Text(
                       "Dashboard of all rooms : Today ($displayDate)",
-                      style: const TextStyle(fontSize: 28),
+                      style: const TextStyle(fontSize: 20),
                     ),
-                    const SizedBox(height: 30),
+                    const SizedBox(height: 20),
 
                     // 1. กล่องใหญ่ Total Room
                     _buildTotalRoomSection(_dashboardData),
