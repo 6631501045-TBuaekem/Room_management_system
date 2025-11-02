@@ -48,14 +48,12 @@ class _RoomNavigationState extends State<RoomNavigation> {
     switch (widget.userRole) {
       case "0": // User
         _pages = [
-          const Browseroompage(),
           const Requestroompage(),
           const Checkroompage(),
           const Historypage(),
           const Profilepage(),
         ];
         _navigationItems = const [
-          BottomNavigationBarItem(icon: Icon(Icons.search), label: 'Browse'),
           BottomNavigationBarItem(icon: Icon(Icons.outbox), label: 'Request'),
           BottomNavigationBarItem(icon: Icon(Icons.check_circle), label: 'Check'),
           BottomNavigationBarItem(icon: Icon(Icons.article), label: 'History'),
