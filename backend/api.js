@@ -855,33 +855,64 @@ app.put('/rooms/manage/edit', function (req, res) {
 //     "message": "Room enabled successfully"
 // }
 app.put('/rooms/manage/enaanddis', async function (req, res) {
-  // Only staff allowed
   if (!req.session?.userId || req.session?.userRole !== "1") {
     return res.status(401).json({ message: "Unauthorized - Staff access required" });
   }
 
   const { room_id, action } = req.body;
-  // action should be either "enable" or "disable"
-
   if (!room_id || !["enable", "disable"].includes(action)) {
     return res.status(400).json({ message: "Room ID and valid action (enable/disable) are required" });
   }
 
-  const newStatus = action === "enable" ? "Free" : "Disable";
-
   try {
     const connection = await pool.promise().getConnection();
     try {
-      const sql = `
-        UPDATE room SET 
-          timestatus8 = ?, 
-          timestatus10 = ?, 
-          timestatus13 = ?, 
-          timestatus15 = ?
-        WHERE room_id = ?
-      `;
-      await connection.query(sql, [newStatus, newStatus, newStatus, newStatus, room_id]);
+      // Optional: prevent disabling if the current active timeslot is not Free
+      const now = getNowDate();
+      const hours = getCurrentHourFrac();
+      let currentSlot = null;
+      if (hours >= 8 && hours < 10) currentSlot = 'timestatus8';
+      else if (hours >= 10 && hours < 12) currentSlot = 'timestatus10';
+      else if (hours >= 13 && hours < 15) currentSlot = 'timestatus13';
+      else if (hours >= 15 && hours < 17) currentSlot = 'timestatus15';
 
+      if (action === "disable" && currentSlot) {
+        const [rows] = await connection.query(
+          `SELECT ${currentSlot} AS currentStatus FROM room WHERE room_id = ?`,
+          [room_id]
+        );
+        if (rows.length > 0 && rows[0].currentStatus !== "Free") {
+          return res.status(400).json({
+            message: "Cannot disable room during an active or reserved time slot."
+          });
+        }
+      }
+
+      // Only change appropriate values:
+      // - disable: change timestatusX from 'Free' -> 'Disable' (leave Reserved/Pending/etc.)
+      // - enable:  change timestatusX from 'Disable' -> 'Free' (leave Reserved/Pending/etc.)
+      let sql;
+      if (action === "disable") {
+        sql = `
+          UPDATE room SET
+            timestatus8 = CASE WHEN timestatus8 = 'Free' THEN 'Disable' ELSE timestatus8 END,
+            timestatus10 = CASE WHEN timestatus10 = 'Free' THEN 'Disable' ELSE timestatus10 END,
+            timestatus13 = CASE WHEN timestatus13 = 'Free' THEN 'Disable' ELSE timestatus13 END,
+            timestatus15 = CASE WHEN timestatus15 = 'Free' THEN 'Disable' ELSE timestatus15 END
+          WHERE room_id = ?
+        `;
+      } else { // enable
+        sql = `
+          UPDATE room SET
+            timestatus8 = CASE WHEN timestatus8 = 'Disable' THEN 'Free' ELSE timestatus8 END,
+            timestatus10 = CASE WHEN timestatus10 = 'Disable' THEN 'Free' ELSE timestatus10 END,
+            timestatus13 = CASE WHEN timestatus13 = 'Disable' THEN 'Free' ELSE timestatus13 END,
+            timestatus15 = CASE WHEN timestatus15 = 'Disable' THEN 'Free' ELSE timestatus15 END
+          WHERE room_id = ?
+        `;
+      }
+
+      await connection.query(sql, [room_id]);
       res.status(200).json({ message: `Room ${action}d successfully` });
     } finally {
       connection.release();
@@ -891,6 +922,8 @@ app.put('/rooms/manage/enaanddis', async function (req, res) {
     res.status(500).json({ message: "Database Server Error" });
   }
 });
+
+
 
 
 // show dashboard sum all status
