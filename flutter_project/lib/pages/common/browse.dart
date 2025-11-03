@@ -188,13 +188,13 @@ class _BrowseRoomPageState extends State<Browseroompage> {
   }) {
     Color getStatusColor(String status) {
       switch (status.toLowerCase()) {
-        case 'available':
+        case 'free':
           return Colors.green;
         case 'reserved':
           return Colors.blue;
         case 'pending':
           return Colors.orange;
-        case 'unavailable':
+        case 'disable':
           return Colors.red;
         default:
           return Colors.black;

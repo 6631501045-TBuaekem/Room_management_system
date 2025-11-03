@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:convert';
-import '../../utills/session_cilent.dart'; 
+import '../../utills/session_cilent.dart';
+
 final session = SessionHttpClient();
 
 class Registerpage extends StatefulWidget {
@@ -11,153 +12,148 @@ class Registerpage extends StatefulWidget {
 }
 
 class _RegisterpageState extends State<Registerpage> {
-  final TextEditingController _controller1 = TextEditingController();
-  final TextEditingController _controller2 = TextEditingController();
-  final TextEditingController _controller3 = TextEditingController();
-  final TextEditingController _controller4 = TextEditingController();
+  final _nameCtrl = TextEditingController();
+  final _usernameCtrl = TextEditingController();
+  final _passwordCtrl = TextEditingController();
+  final _confirmCtrl = TextEditingController();
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    precacheImage(
-      const AssetImage('assets/images/register.jpg'),
-      context,
-    ); // fix white screen โหลดรูปล่วงหน้าก่อน
+    precacheImage(const AssetImage('assets/images/register.jpg'), context);
   }
 
-  void register() async {
-    final nameInput = _controller1.text;
-    final usernameInput = _controller2.text;
-    final passwordInput = _controller3.text;
-    final confirmPasswordInput = _controller4.text;
+  Future<void> register() async {
+    final name = _nameCtrl.text.trim();
+    final username = _usernameCtrl.text.trim();
+    final password = _passwordCtrl.text.trim();
+    final confirm = _confirmCtrl.text.trim();
 
-      if(passwordInput != confirmPasswordInput){
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Password doesn't match")),
-        );
-        return;
-      }
-      final body = {"name": nameInput, "username": usernameInput, "password": passwordInput, "confirm_password": confirmPasswordInput, "role": '0' };
-      final url = Uri.parse('http://10.0.2.2:3005/register');
-      final response = await session.post(url, body: jsonEncode(body));
-      if(response.statusCode == 200){
-        Navigator.pop(context); // return to login page
-      }else{
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(response.body)),
-        );
-      }
+    if (password != confirm) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Passwords don't match")),
+      );
+      return;
+    }
+
+    final body = {
+      "name": name,
+      "username": username,
+      "password": password,
+      "confirm_password": confirm,
+      "role": '0',
+    };
+
+    final url = Uri.parse('http://10.0.2.2:3005/register');
+    final response = await session.post(url, body: jsonEncode(body));
+
+    if (response.statusCode == 200) {
+      Navigator.pop(context); // return to login page
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(response.body)),
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
-        decoration: BoxDecoration(
-          image: DecorationImage(
-            image: AssetImage('assets/images/register.jpg'),
-            fit: BoxFit.cover,
+      body: Stack(
+        children: [
+          // Background image
+          const Positioned.fill(
+            child: Image(
+              image: AssetImage('assets/images/register.jpg'),
+              fit: BoxFit.cover,
+            ),
           ),
-        ),
-        child: Center(
-          child: SingleChildScrollView(
-            child: Padding(
-              padding: EdgeInsetsGeometry.symmetric(
-                horizontal: 14,
-                vertical: 15,
-              ),
+
+          // Dark overlay
+          Positioned.fill(
+            child: Container(color: Colors.black.withOpacity(0.45)),
+          ),
+
+          // Foreground content
+          Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 25, vertical: 20),
               child: Column(
                 children: [
-                  Text(
+                  const Text(
                     'Room Reservation',
-                    style: TextStyle(fontSize: 25, fontWeight: FontWeight.bold),
+                    style: TextStyle(
+                      fontSize: 35,
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 1.2,
+                    ),
                   ),
-                  const SizedBox(height: 40),
-                  Text(
+                  const SizedBox(height: 50),
+
+                  const Text(
                     'Register',
                     style: TextStyle(
-                      fontSize: 22,
-                      color: const Color.fromARGB(255, 68, 68, 68),
+                      fontSize: 26,
+                      color: Colors.white,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
-                  Text(
-                    'Please fill the details and create account',
-                    style: TextStyle(fontSize: 14, color: Colors.black),
+                  const Text(
+                    'Please fill in the details to create your account',
+                    style: TextStyle(fontSize: 14, color: Colors.white70),
                   ),
-                  TextField(
-                    controller: _controller1,
-                    style: TextStyle(fontSize: 14),
-                    decoration: InputDecoration(
-                      hintText: 'name',
-                      border: OutlineInputBorder(),
-                      filled: true,
-                      fillColor: Colors.white,
-                    ),
-                  ),
-                  const SizedBox(height: 7),
-                  TextField(
-                    controller: _controller2,
-                    style: TextStyle(fontSize: 14),
-                    decoration: InputDecoration(
-                      hintText: 'username',
-                      border: OutlineInputBorder(),
-                      filled: true,
-                      fillColor: Colors.white,
-                    ),
-                  ),
-                  const SizedBox(height: 7),
-                  TextField(
-                    controller: _controller3,
-                    style: TextStyle(fontSize: 14),
-                    decoration: InputDecoration(
-                      hintText: 'password',
-                      border: OutlineInputBorder(),
-                      filled: true,
-                      fillColor: Colors.white,
-                    ),
-                  ),
-                  const SizedBox(height: 7),
-                  TextField(
-                    controller: _controller4,
-                    style: TextStyle(fontSize: 14),
-                    decoration: InputDecoration(
-                      hintText: 'confirm password',
-                      border: OutlineInputBorder(),
-                      filled: true,
-                      fillColor: Colors.white,
-                    ),
-                  ),
-                  const SizedBox(height: 7),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: ElevatedButton(
-                          onPressed: register,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.black,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(7),
-                            ),
-                          ),
-                          child: const Text(
-                            'Sign up',
-                            style: TextStyle(fontSize: 18, color: Colors.white),
-                          ),
+                  const SizedBox(height: 25),
+
+                  // Name
+                  _buildTextField(_nameCtrl, 'Full Name'),
+                  const SizedBox(height: 12),
+
+                  // Username
+                  _buildTextField(_usernameCtrl, 'Username'),
+                  const SizedBox(height: 12),
+
+                  // Password
+                  _buildTextField(_passwordCtrl, 'Password', isPassword: true),
+                  const SizedBox(height: 12),
+
+                  // Confirm Password
+                  _buildTextField(_confirmCtrl, 'Confirm Password', isPassword: true),
+                  const SizedBox(height: 25),
+
+                  // Sign up button
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: register,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color.fromARGB(255, 0, 0, 0),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(6),
                         ),
                       ),
-                    ],
+                      child: const Text(
+                        'Sign up',
+                        style: TextStyle(
+                          fontSize: 18,
+                          color: Color.fromARGB(255, 255, 255, 255),
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
                   ),
-                  const SizedBox(height: 11),
+
+                  const SizedBox(height: 25),
+
+                  // Back to login
                   TextButton(
-                    onPressed: () {
-                      Navigator.pop(context);
-                    },
+                    onPressed: () => Navigator.pop(context),
                     child: const Text(
-                      'Back to login',
+                      'Back to Login',
                       style: TextStyle(
                         fontSize: 18,
-                        color: Color.fromARGB(255, 198, 212, 198),
+                        color: Colors.white,
                         fontWeight: FontWeight.bold,
                         decoration: TextDecoration.underline,
                       ),
@@ -167,7 +163,25 @@ class _RegisterpageState extends State<Registerpage> {
               ),
             ),
           ),
-        ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTextField(TextEditingController controller, String hint,
+      {bool isPassword = false}) {
+    return TextField(
+      controller: controller,
+      obscureText: isPassword,
+      style: const TextStyle(fontSize: 15),
+      decoration: InputDecoration(
+        hintText: hint,
+        hintStyle: const TextStyle(color: Colors.black54),
+        filled: true,
+        fillColor: Colors.white,
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)),
+        contentPadding:
+            const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
       ),
     );
   }
