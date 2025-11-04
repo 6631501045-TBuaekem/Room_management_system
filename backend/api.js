@@ -33,11 +33,12 @@ app.use(session({
   }
 }));
 
+
 app.use('/public', express.static(path.join(__dirname, "public")));
 app.use(express.json());
 
 
-const timesim = null; // ทดสอบเวลา: Ex. timesim = 9, null = ใช้เวลาจริง.
+const timesim = 9; // ทดสอบเวลา: Ex. timesim = 9, null = ใช้เวลาจริง.  timesim=6 reset สถานะ
 
 // Return a Date object adjusted for simulated time
 function getNowDate() {
@@ -215,10 +216,10 @@ app.post("/logout", function (req, res) {
 // profile
 // ได้ออกมา
 // {
-//     "name": "ta",
-//     "username": "taa",
+//     "name": "Mike BB",
+//     "username": "Mike_Student",
 //     "role": "0"
-// } 
+// }
 app.get('/profile', async function (req, res) {
   const username = req.session?.username; // safer access
 
@@ -251,7 +252,7 @@ app.get('/profile', async function (req, res) {
 });
 
 
-// http://localhost:3005/rooms/info?date=2025-10
+// http://localhost:3005/rooms/info?date=2025-10-24
 // Browseroom
 // ได้ออกมา
 // [
@@ -263,7 +264,7 @@ app.get('/profile', async function (req, res) {
 //             "08.00 - 10.00": "Free"
 //             "10.00 - 12.00": "Pending"
 //             "13.00 - 15.00": "Reserved"
-//             "15.00 - 17.00": "Disable"
+//             "15.00 - 17.00": "Reserved"
 //         }
 //     },...
 // ]
@@ -472,9 +473,9 @@ app.get("/rooms/request/info", async function (req, res) {
 
 // ใน body มี room_id, date, timeSlot, reason
 // {
-//     "room_id": "1",
-//     "date": "2025-03-29",
-//     "timeSlot": "13",
+//     "room_id": "35",
+//     "date": "2025-10-24",
+//     "timeSlot": "15",
 //     "reason": "Study group meeting"
 // }
 app.post("/rooms/request", async function(req, res) {
@@ -577,7 +578,7 @@ app.post("/rooms/request", async function(req, res) {
 //         {
 //             "request_id": 315,
 //             "room_name": "abc-123",
-//             "room_description": "a new room",
+//             "room_description": "new room",
 //             "booking_date": "24/10/2025",
 //             "booking_time": "15:00 - 17:00",
 //             "booking_status": "pending",
@@ -659,7 +660,7 @@ app.get("/rooms/check/info", async function (req, res) {
 //         "room_description": "A lecture hall, Lcd projector, Screen, Amp, Mic and speaker with 160 available seats",
 //         "timeSlots": {
 //            "08:00 - 10:00": "Free",
-//            "10:00 - 12:00": "Disable",
+//            "10:00 - 12:00": "Free",
 //            "13:00 - 15:00": "Free",
 //            "15:00 - 17:00": "Free"
 //          }
@@ -789,7 +790,7 @@ app.post('/rooms/manage/add', async function (req, res) {
 // ใน body มี room_id, room_name, room_description
 // {
 //     "room_id": 35,
-//     "room_name": "abc-123",
+//     "room_name": "abcs-123",
 //     "room_description": "a new room"
 // }
 // ได้ออกมา
@@ -913,22 +914,30 @@ app.get("/slotdashboard", function (req, res) {
 
   const query = `
       SELECT 
+          -- 1. นับ Free Slots (นับ Slot)
           SUM(CASE WHEN timestatus8 = 'Free' THEN 1 ELSE 0 END 
               + CASE WHEN timestatus10 = 'Free' THEN 1 ELSE 0 END 
               + CASE WHEN timestatus13 = 'Free' THEN 1 ELSE 0 END 
               + CASE WHEN timestatus15 = 'Free' THEN 1 ELSE 0 END) AS freeSlots,
+
+          -- 2. นับ Pending Slots (นับ Slot)
           SUM(CASE WHEN timestatus8 = 'Pending' THEN 1 ELSE 0 END 
               + CASE WHEN timestatus10 = 'Pending' THEN 1 ELSE 0 END 
               + CASE WHEN timestatus13 = 'Pending' THEN 1 ELSE 0 END 
               + CASE WHEN timestatus15 = 'Pending' THEN 1 ELSE 0 END) AS pendingSlots,
+
+          -- 3. นับ Reserved Slots (นับ Slot)
           SUM(CASE WHEN timestatus8 = 'Reserved' THEN 1 ELSE 0 END 
               + CASE WHEN timestatus10 = 'Reserved' THEN 1 ELSE 0 END 
               + CASE WHEN timestatus13 = 'Reserved' THEN 1 ELSE 0 END 
               + CASE WHEN timestatus15 = 'Reserved' THEN 1 ELSE 0 END) AS reservedSlots,
-          SUM(CASE WHEN timestatus8 = 'Disable' THEN 1 ELSE 0 END 
-              + CASE WHEN timestatus10 = 'Disable' THEN 1 ELSE 0 END 
-              + CASE WHEN timestatus13 = 'Disable' THEN 1 ELSE 0 END 
-              + CASE WHEN timestatus15 = 'Disable' THEN 1 ELSE 0 END) AS disabledSlots 
+
+          -- 4. นับ Disabled Rooms (นับห้องที่ทุก Slot ถูก Disable) 🟢 แก้ไขตรงนี้
+          SUM(CASE WHEN timestatus8 = 'Disable' 
+                   AND timestatus10 = 'Disable' 
+                   AND timestatus13 = 'Disable' 
+                   AND timestatus15 = 'Disable' 
+              THEN 1 ELSE 0 END) AS disabledRooms
       FROM room;
   `;
 
@@ -947,7 +956,11 @@ app.get("/slotdashboard", function (req, res) {
     // Combine date with slot summary
     res.status(200).json({
       date: formattedDate,
-      ...result[0],
+      // 🔴 ส่ง 'disabledRooms' กลับไปในคีย์ 'disabledSlots'
+      freeSlots: result[0].freeSlots.toString(), 
+      pendingSlots: result[0].pendingSlots.toString(),
+      reservedSlots: result[0].reservedSlots.toString(),
+      disabledSlots: result[0].disabledRooms.toString(), // ใช้ disabledRooms ในคีย์ disabledSlots เพื่อไม่แก้ Flutter code
     });
   });
 });
@@ -958,8 +971,8 @@ app.get("/slotdashboard", function (req, res) {
 // [
 //     {
 //         "request_id": 314,
-//         "username": "taa",
-//         "room_name": "abc-123",
+//         "username": "Mike_Student",
+//         "room_name": "abcs-123",
 //         "booking_date": "24 October 2025",
 //         "booking_time": "15:00 - 17:00",
 //         "reason": "Study group meeting"
@@ -1130,11 +1143,11 @@ app.post("/update-requests", async function (req, res) {
 // ได้ออกมา
 // [
 //     {
-//         "room": "abc-123",
+//         "room": "abcs-123",
 //         "booking_date": "24/10/25",
 //         "booking_time": "12:48",
 //         "booking_timeslot": "15.00 - 17.00",
-//         "booker_name": "ta",
+//         "booker_name": "Mike_Student",
 //         "status": "pending",
 //         "approver_name": "-"
 //     }
@@ -1338,7 +1351,7 @@ console.log('🕒 Room timeslot cron scheduler active — checks every minute.')
 
 
 const port = 3005;
-app.listen(port, function(){
+app.listen(port,'0.0.0.0', function(){
     console.log(`Server is running on ${port}`)
 })
 

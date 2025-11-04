@@ -20,14 +20,17 @@ class _RegisterpageState extends State<Registerpage> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    precacheImage(const AssetImage('assets/images/register.jpg'), context); // fix white screen โหลดรูปล่วงหน้าก่อน
+    precacheImage(
+      const AssetImage('assets/images/register.jpg'),
+      context,
+    ); // fix white screen โหลดรูปล่วงหน้าก่อน
   }
 
   void register() async {
-      final nameInput = _controller1.text;
-      final usernameInput = _controller2.text;
-      final passwordInput = _controller3.text;
-      final confirmPasswordInput = _controller4.text;
+    final nameInput = _controller1.text;
+    final usernameInput = _controller2.text;
+    final passwordInput = _controller3.text;
+    final confirmPasswordInput = _controller4.text;
 
       if(passwordInput != confirmPasswordInput){
         ScaffoldMessenger.of(context).showSnackBar(
@@ -46,6 +49,7 @@ class _RegisterpageState extends State<Registerpage> {
         );
       }
   }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -145,21 +149,21 @@ class _RegisterpageState extends State<Registerpage> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 11,),
+                  const SizedBox(height: 11),
                   TextButton(
-                  onPressed: (){
-                    Navigator.pop(context);
-                  },
-                  child: const Text(
-                    'Back to login',
-                    style: TextStyle(
-                      fontSize: 15,
-                      color: Color.fromARGB(255, 198, 212, 198),
-                      fontWeight: FontWeight.bold,
-                      decoration: TextDecoration.underline,
+                    onPressed: () {
+                      Navigator.pop(context);
+                    },
+                    child: const Text(
+                      'Back to login',
+                      style: TextStyle(
+                        fontSize: 15,
+                        color: Color.fromARGB(255, 198, 212, 198),
+                        fontWeight: FontWeight.bold,
+                        decoration: TextDecoration.underline,
+                      ),
                     ),
                   ),
-                ),
                 ],
               ),
             ),
