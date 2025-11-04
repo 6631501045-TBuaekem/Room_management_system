@@ -98,7 +98,7 @@ class _ProfileState extends State<Profilepage> {
       body: isLoading
           ? const Center(child: CircularProgressIndicator())
           : Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 50),
+              padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 10),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.start,
                 children: [
@@ -107,7 +107,7 @@ class _ProfileState extends State<Profilepage> {
                     backgroundColor: Colors.grey,
                     backgroundImage: AssetImage('assets/images/avatar.jpg'),
               ),
-                  const SizedBox(height: 80),
+                  const SizedBox(height: 70),
 
                   // Name
                   Row(
@@ -116,9 +116,9 @@ class _ProfileState extends State<Profilepage> {
                       const Text('Name: ',
                           style: TextStyle(
                         
-                              fontWeight: FontWeight.bold, fontSize: 25)),
+                              fontWeight: FontWeight.bold, fontSize: 20)),
                       Text(name ?? '',
-                          style: const TextStyle(fontSize: 25)),
+                          style: const TextStyle(fontSize: 20)),
                     ],
                   ),
 
@@ -130,13 +130,13 @@ class _ProfileState extends State<Profilepage> {
                     children: [
                       const Text('User: ',
                           style: TextStyle(
-                              fontWeight: FontWeight.bold, fontSize: 25)),
+                              fontWeight: FontWeight.bold, fontSize: 20)),
                       Text(username ?? '',
-                          style: const TextStyle(fontSize: 25)),
+                          style: const TextStyle(fontSize: 20)),
                     ],
                   ),
 
-                  const SizedBox(height: 350),
+                  const SizedBox(height: 150),
                   const Divider(thickness: 1, height: 40),
 
                   // Logout button
@@ -145,7 +145,7 @@ class _ProfileState extends State<Profilepage> {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.red,
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 50, vertical: 20 ),
+                          horizontal: 40, vertical: 20 ),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(6),
                       ),
