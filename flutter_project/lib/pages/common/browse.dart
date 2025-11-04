@@ -130,6 +130,8 @@ class _BrowseRoomPageState extends State<Browseroompage> {
 
                     // 🏠 Room List
                     Expanded(
+                      child: RefreshIndicator(
+                      onRefresh: _fetchRooms, // function to call when user pulls down
                       child: filteredRooms.isEmpty
                           ? const Center(
                               child: Text(
@@ -170,6 +172,7 @@ class _BrowseRoomPageState extends State<Browseroompage> {
                               },
                             ),
                     ),
+                    ),
                   ],
                 ),
         ),
@@ -185,13 +188,13 @@ class _BrowseRoomPageState extends State<Browseroompage> {
   }) {
     Color getStatusColor(String status) {
       switch (status.toLowerCase()) {
-        case 'available':
+        case 'free':
           return Colors.green;
         case 'reserved':
           return Colors.blue;
         case 'pending':
           return Colors.orange;
-        case 'unavailable':
+        case 'disable':
           return Colors.red;
         default:
           return Colors.black;

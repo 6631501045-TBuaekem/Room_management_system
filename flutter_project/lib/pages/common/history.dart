@@ -182,134 +182,133 @@ class __HistoryState extends State<Historypage> {
         ? (entry.approvedBy ?? '-')
         : entry.user;
 
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 20.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // 1. Location and Time Header (Centered)
-              Center(
-                child: Column(
-                  children: [
-                    Text(
-                      entry.location,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 25,
-                      ),
+    return Card(
+      margin: const EdgeInsets.symmetric(
+        horizontal: 20.0,
+        vertical: 10.0,
+      ), // มีระยะห่างระหว่าง Card
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(15.0),
+        side: BorderSide(
+          color: statusColor.withOpacity(0.7), // ใช้สีสถานะเป็นขอบอ่อนๆ
+          width: 2,
+        ),
+      ),
+      elevation: 4, // เพิ่มเงา
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 20.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // 1. Location and Time Header (Centered)
+            Center(
+              child: Column(
+                children: [
+                  Text(
+                    entry.location,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 25,
                     ),
-                    Text(entry.timeRange, style: const TextStyle(fontSize: 20)),
-                  ],
+                  ),
+                  Text(entry.timeRange, style: const TextStyle(fontSize: 20)),
+                ],
+              ),
+            ),
+            const SizedBox(height: 30),
+
+            // 2. Column Headers (Date/Time, status, User/Approve by)
+            Row(
+              children: [
+                const Expanded(
+                  flex: 3,
+                  child: Text(
+                    'Date/Time',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                    textAlign: TextAlign.center,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 30),
-
-              // 2. Column Headers (Date/Time, status, User/Approve by)
-              Row(
-                children: [
-                  const Expanded(
-                    flex: 3,
-                    child: Text(
-                      'Date/Time',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 18,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
+                const Expanded(
+                  flex: 4,
+                  child: Text(
+                    'Status',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                    textAlign: TextAlign.center,
                   ),
-                  const Expanded(
-                    flex: 4,
-                    child: Text(
-                      'Status',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 18,
-                      ),
-                      textAlign: TextAlign.center,
+                ),
+                Expanded(
+                  flex: 3,
+                  child: Text(
+                    thirdColumnHeader,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18,
                     ),
+                    textAlign: TextAlign.center,
                   ),
-                  Expanded(
-                    flex: 3,
-                    child: Text(
-                      thirdColumnHeader,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 18,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 15),
-
-              // 3. Data Row
-              Row(
-                children: [
-                  Expanded(
-                    flex: 3,
-                    child: Text(
-                      entry.dateTime,
-                      style: const TextStyle(fontSize: 18),
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-                  Expanded(
-                    flex: 4,
-                    child: Text(
-                      entry.status,
-                      style: TextStyle(
-                        color: statusColor,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 18,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-                  Expanded(
-                    flex: 3,
-                    child: Text(
-                      thirdColumnData,
-                      style: const TextStyle(fontSize: 18),
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-                ],
-              ),
-
-              // 4. Approve by Row (แถวแยกต่างหาก - เฉพาะ Staff Role 1)
-              if (shouldShowApprovedByBelow && !isStudent) ...[
-                const SizedBox(height: 35),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Text(
-                      'Approve by ',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    SizedBox(width: 100),
-                    Text(
-                      entry.approvedBy!,
-                      style: const TextStyle(fontSize: 18),
-                    ),
-                  ],
                 ),
               ],
+            ),
+            const SizedBox(height: 15),
+
+            // 3. Data Row
+            Row(
+              children: [
+                Expanded(
+                  flex: 3,
+                  child: Text(
+                    entry.dateTime,
+                    style: const TextStyle(fontSize: 18),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+                Expanded(
+                  flex: 4,
+                  child: Text(
+                    entry.status,
+                    style: TextStyle(
+                      color: statusColor,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+                Expanded(
+                  flex: 3,
+                  child: Text(
+                    thirdColumnData,
+                    style: const TextStyle(fontSize: 18),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ],
+            ),
+
+            // 4. Approve by Row (แถวแยกต่างหาก - เฉพาะ Staff Role 1)
+            if (shouldShowApprovedByBelow && !isStudent) ...[
+              const SizedBox(height: 20), // ลดช่องว่างลงเล็กน้อย
+              const Divider(
+                color: Colors.black26,
+              ), // เพิ่ม Divider เล็กๆ ใน Card
+              const SizedBox(height: 10),
+              Row(
+                // 🌟 ปรับเป็น spaceBetween
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Text(
+                    'Approved by: ',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  SizedBox(width: 120),
+                  // ลบ SizedBox(width: 100) ทิ้ง เพราะใช้ mainAxisAlignment: spaceBetween
+                  Text(entry.approvedBy!, style: const TextStyle(fontSize: 18)),
+                ],
+              ),
             ],
-          ),
+          ],
         ),
-        // Divider ที่ด้านล่างของแต่ละบล็อก
-        const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 20.0),
-          child: Divider(color: Colors.black54),
-        ),
-      ],
+      ),
     );
   }
 
