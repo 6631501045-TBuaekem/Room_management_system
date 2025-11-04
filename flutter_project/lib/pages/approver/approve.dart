@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'dart:convert';
-import '../common/history.dart';
 import '../../utills/session_cilent.dart';
 
 final session = SessionHttpClient();
@@ -95,81 +94,98 @@ class _ApprovepageState extends State<Approvepage> {
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _pendingRequests.isEmpty
-          ? const Center(child: Text("No pending requests"))
-          : ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: _pendingRequests.length,
-              itemBuilder: (context, index) {
-                final req = _pendingRequests[index];
-                return Card(
-                  margin: const EdgeInsets.only(bottom: 20),
-                  elevation: 3,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+              ? RefreshIndicator(
+                  onRefresh: _fetchPendingRequests,
+                  child: ListView(
+                    children: const [
+                      SizedBox(height: 300),
+                      Center(
+                        child: Text(
+                          "No pending requests",
+                          style: TextStyle(fontSize: 16),
+                        ),
+                      ),
+                    ],
                   ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(20),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          req['username'] ?? '-',
-                          style: const TextStyle(
-                            fontSize: 22,
-                            fontWeight: FontWeight.bold,
+                )
+              : RefreshIndicator(
+                  onRefresh: _fetchPendingRequests,
+                  child: ListView.builder(
+                    padding: const EdgeInsets.all(16),
+                    itemCount: _pendingRequests.length,
+                    itemBuilder: (context, index) {
+                      final req = _pendingRequests[index];
+                      return Card(
+                        margin: const EdgeInsets.only(bottom: 20),
+                        elevation: 3,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.all(20),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                req['username'] ?? '-',
+                                style: const TextStyle(
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              Text(
+                                req['room_name'] ?? '',
+                                style: const TextStyle(fontSize: 18),
+                              ),
+                              Text(
+                                req['booking_date'] ?? '',
+                                style: const TextStyle(fontSize: 16),
+                              ),
+                              Text(
+                                req['booking_time'] ?? '',
+                                style: const TextStyle(fontSize: 16),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                "Reason: ${req['reason'] ?? ''}",
+                                style: const TextStyle(fontSize: 16),
+                              ),
+                              const SizedBox(height: 16),
+                              Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  ElevatedButton(
+                                    onPressed: () => _updateRequest(
+                                        req['request_id'], "approve"),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.green,
+                                    ),
+                                    child: const Text(
+                                      "Approve",
+                                      style: TextStyle(color: Colors.white),
+                                    ),
+                                  ),
+                                  ElevatedButton(
+                                    onPressed: () => _updateRequest(
+                                        req['request_id'], "reject"),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.red,
+                                    ),
+                                    child: const Text(
+                                      "Reject",
+                                      style: TextStyle(color: Colors.white),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
                           ),
                         ),
-                        Text(
-                          req['room_name'] ?? '',
-                          style: const TextStyle(fontSize: 18),
-                        ),
-                        Text(
-                          req['booking_date'] ?? '',
-                          style: const TextStyle(fontSize: 16),
-                        ),
-                        Text(
-                          req['booking_time'] ?? '',
-                          style: const TextStyle(fontSize: 16),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          "Reason: ${req['reason'] ?? ''}",
-                          style: const TextStyle(fontSize: 16),
-                        ),
-                        const SizedBox(height: 16),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            ElevatedButton(
-                              onPressed: () =>
-                                  _updateRequest(req['request_id'], "approve"),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.green,
-                              ),
-                              child: const Text(
-                                "Approve",
-                                style: TextStyle(color: Colors.white),
-                              ),
-                            ),
-                            ElevatedButton(
-                              onPressed: () =>
-                                  _updateRequest(req['request_id'], "reject"),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.red,
-                              ),
-                              child: const Text(
-                                "Reject",
-                                style: TextStyle(color: Colors.white),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
+                      );
+                    },
                   ),
-                );
-              },
-            ),
+                ),
     );
   }
 }

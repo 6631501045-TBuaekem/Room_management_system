@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_project/pages/loginout/login.dart';
 import 'dart:convert';
-import 'package:http/http.dart' as http;
 import '../../utills/session_cilent.dart'; 
 final session = SessionHttpClient();
 
@@ -60,7 +59,7 @@ class _ProfileState extends State<Profilepage> {
   // logout แล้วกลับไปหน้า login
   Future<void> _logout() async {
     try {
-      final response = await http.post(Uri.parse('$baseUrl/logout'));
+      final response = await session.post(Uri.parse('$baseUrl/logout'));
       if (response.statusCode == 200) {
         final result = jsonDecode(response.body);
         if (result["message"] == "Logged out successful") {

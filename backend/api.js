@@ -867,30 +867,31 @@ app.put('/rooms/manage/enaanddis', async function (req, res) {
   try {
     const connection = await pool.promise().getConnection();
     try {
-      // Optional: prevent disabling if the current active timeslot is not Free
-      const now = getNowDate();
-      const hours = getCurrentHourFrac();
-      let currentSlot = null;
-      if (hours >= 8 && hours < 10) currentSlot = 'timestatus8';
-      else if (hours >= 10 && hours < 12) currentSlot = 'timestatus10';
-      else if (hours >= 13 && hours < 15) currentSlot = 'timestatus13';
-      else if (hours >= 15 && hours < 17) currentSlot = 'timestatus15';
+      // ✅ Fetch current room status
+      const [rows] = await connection.query(
+        `SELECT timestatus8, timestatus10, timestatus13, timestatus15 FROM room WHERE room_id = ?`,
+        [room_id]
+      );
 
-      if (action === "disable" && currentSlot) {
-        const [rows] = await connection.query(
-          `SELECT ${currentSlot} AS currentStatus FROM room WHERE room_id = ?`,
-          [room_id]
-        );
-        if (rows.length > 0 && rows[0].currentStatus !== "Free") {
-          return res.status(400).json({
-            message: "Cannot disable room during an active or reserved time slot."
-          });
-        }
+      if (rows.length === 0) {
+        return res.status(404).json({ message: "Room not found." });
       }
 
-      // Only change appropriate values:
-      // - disable: change timestatusX from 'Free' -> 'Disable' (leave Reserved/Pending/etc.)
-      // - enable:  change timestatusX from 'Disable' -> 'Free' (leave Reserved/Pending/etc.)
+      const room = rows[0];
+      const statuses = Object.values(room);
+
+      // ✅ If any timeslot is not Free/Disable → block toggling
+      const allAllowed = statuses.every(
+        (status) => status === "Free" || status === "Disable"
+      );
+
+      if (!allAllowed) {
+        return res.status(400).json({
+          message: "Cannot enable or disable — room has active or reserved slots.",
+        });
+      }
+
+      // ✅ Update only Free/Disable slots
       let sql;
       if (action === "disable") {
         sql = `
@@ -901,7 +902,7 @@ app.put('/rooms/manage/enaanddis', async function (req, res) {
             timestatus15 = CASE WHEN timestatus15 = 'Free' THEN 'Disable' ELSE timestatus15 END
           WHERE room_id = ?
         `;
-      } else { // enable
+      } else {
         sql = `
           UPDATE room SET
             timestatus8 = CASE WHEN timestatus8 = 'Disable' THEN 'Free' ELSE timestatus8 END,
@@ -913,15 +914,17 @@ app.put('/rooms/manage/enaanddis', async function (req, res) {
       }
 
       await connection.query(sql, [room_id]);
+
       res.status(200).json({ message: `Room ${action}d successfully` });
     } finally {
       connection.release();
     }
   } catch (error) {
-    console.error('Database error:', error);
+    console.error("Database error:", error);
     res.status(500).json({ message: "Database Server Error" });
   }
 });
+
 
 
 
