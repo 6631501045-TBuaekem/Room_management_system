@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'dart:convert';
-import 'package:http/http.dart' as http;
 import '../../main.dart';
 import 'register.dart';
 import '../../utills/session_cilent.dart'; 
@@ -20,9 +19,11 @@ class _LoginpageState extends State<Loginpage> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    precacheImage(const AssetImage('assets/images/login.jpg'), context); // fix white screen โหลดรูปล่วงหน้าก่อน
+    precacheImage(
+      const AssetImage('assets/images/login.jpg'),
+      context,
+    ); // fix white screen โหลดรูปล่วงหน้าก่อน
   }
-
 
   void login() async {
     final body = {"username": _controller1.text, "password": _controller2.text};
@@ -35,11 +36,11 @@ class _LoginpageState extends State<Loginpage> {
         context,
         MaterialPageRoute(builder: (_) => RoomNavigation(userRole: userRole)),
       );
-    }else {
+    } else {
       String message = response.body;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(message)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
     }
   }
 
@@ -49,7 +50,10 @@ class _LoginpageState extends State<Loginpage> {
       // backgroundColor: const Color.fromARGB(255, 177, 201, 150),
       body: Container(
         decoration: const BoxDecoration(
-          image: DecorationImage(image: AssetImage('assets/images/login.jpg'), fit: BoxFit.cover),
+          image: DecorationImage(
+            image: AssetImage('assets/images/login.jpg'),
+            fit: BoxFit.cover,
+          ),
         ),
         child: Center(
           child: SingleChildScrollView(
@@ -136,7 +140,7 @@ class _LoginpageState extends State<Loginpage> {
                   style: TextStyle(fontSize: 15, color: Colors.white),
                 ),
                 TextButton(
-                  onPressed: (){
+                  onPressed: () {
                     Navigator.push(
                       context,
                       MaterialPageRoute(builder: (_) => const Registerpage()),
@@ -152,7 +156,6 @@ class _LoginpageState extends State<Loginpage> {
                     ),
                   ),
                 ),
-                
               ],
             ),
           ),
