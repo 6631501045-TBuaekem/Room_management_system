@@ -111,6 +111,23 @@ class __CheckroomState extends State<Checkroompage> {
               Text(reason, style: TextStyle(fontSize: 17)),
             ],
           ),
+          if (status.toLowerCase() == 'reject') 
+            Row(
+              children: const [
+                Padding(
+                  padding: EdgeInsetsGeometry.symmetric(vertical: 13),
+                  child:  Text(
+                  'Please make a reservation again ',
+                  style: TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.bold,
+                    color: Color.fromARGB(255, 2, 15, 192),
+                  ),
+                ),
+                )
+               
+              ],
+          ),
         ],
       ),
     );
