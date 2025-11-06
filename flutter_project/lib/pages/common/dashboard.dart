@@ -161,19 +161,25 @@ class _DashboardpageState extends State<Dashboardpage> {
         color: color,
         borderRadius: BorderRadius.circular(15),
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 5),
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 5),
       child: Center(
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(
-              label,
-              style: const TextStyle(
-                fontSize: 15,
-                color: Colors.white,
-                fontWeight: FontWeight.w500,
+            // <<< เพิ่ม Expanded ที่นี่ >>>
+            Expanded(
+              child: Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 15,
+                  color: Colors.white,
+                  fontWeight: FontWeight.w500,
+                ),
+                // เพิ่ม textAlign เพื่อให้แน่ใจว่าข้อความชิดซ้ายภายใน Expanded
+                textAlign: TextAlign.start,
               ),
             ),
+            // <<< จบ Expanded ที่นี่ >>>
             Text(
               count,
               style: const TextStyle(
