@@ -15,7 +15,8 @@ class __RequestroomState extends State<Requestroompage> {
   final TextEditingController controllerSearch = TextEditingController();
 
   List<dynamic> rooms = [];
-  List<dynamic> filteredRooms = []; // for search results
+  List<dynamic> getRoomstatus = [];
+  List<dynamic> filteredRooms = [];
   bool isLoading = true;
 
   String mapTimeSlot(String slot) {
@@ -37,6 +38,7 @@ class __RequestroomState extends State<Requestroompage> {
   void initState() {
     super.initState();
     fetchRooms();
+    fetchStatus();
   }
 
   Future<void> fetchRooms() async {
@@ -53,14 +55,13 @@ class __RequestroomState extends State<Requestroompage> {
         final List<dynamic> data = jsonDecode(response.body);
         setState(() {
           rooms = data;
-          filteredRooms = data;          
+          filteredRooms = data;
           isLoading = false;
         });
       } else {
-        String message = response.body;
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(message)));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(response.body)),
+        );
       }
     } catch (e) {
       debugPrint('Error fetching rooms: $e');
@@ -69,6 +70,37 @@ class __RequestroomState extends State<Requestroompage> {
       });
     }
   }
+
+  Future<void> fetchStatus() async {
+    try {
+      final now = DateTime.now();
+      final today =
+          "${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}";
+
+      final url = Uri.parse(
+        'http://10.0.2.2:3005/rooms/check/info?date=$today',
+      );
+      final response = await session.get(url);
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> data = jsonDecode(response.body);
+        setState(() {
+          // store full booking list for room/time comparison
+          getRoomstatus = data['bookings'];
+        });
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(response.body)),
+        );
+      }
+    } catch (e) {
+      debugPrint('Error fetching room status: $e');
+      setState(() {
+        isLoading = false;
+      });
+    }
+  }
+
   void searchRoom(String query) {
     setState(() {
       if (query.isEmpty) {
@@ -88,7 +120,6 @@ class __RequestroomState extends State<Requestroompage> {
       final today =
           "${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}";
 
-      // convert readable label → backend numeric code
       final mappedSlot = mapTimeSlot(timeSlot);
       if (mappedSlot.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -111,16 +142,15 @@ class __RequestroomState extends State<Requestroompage> {
           SnackBar(content: Text(data['message'] ?? "Booking successful")),
         );
       } else {
-        String message = '';
         final data = jsonDecode(response.body);
-        message = data['message'] ?? response.body;
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(message)));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(data['message'] ?? response.body)),
+        );
       }
       fetchRooms();
+      fetchStatus();
     } catch (e) {
-      debugPrint('Error fetching rooms: $e');
+      debugPrint('Error booking room: $e');
       setState(() {
         isLoading = false;
       });
@@ -132,21 +162,20 @@ class __RequestroomState extends State<Requestroompage> {
 
     showDialog(
       context: context,
-      barrierDismissible: false, // prevent closing by tapping outside
+      barrierDismissible: false,
       builder: (BuildContext context) {
         return AlertDialog(
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(10),
           ),
-          title: Text('Request Room'),
+          title: const Text('Request Room'),
           content: SizedBox(
             width: MediaQuery.of(context).size.width * 0.7,
             height: 220,
             child: Column(
-              mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Time Slot: $timeSlot', style: TextStyle(fontSize: 20)),
+                Text('Time Slot: $timeSlot', style: const TextStyle(fontSize: 20)),
                 const SizedBox(height: 20),
                 TextField(
                   controller: reasonController,
@@ -159,24 +188,14 @@ class __RequestroomState extends State<Requestroompage> {
               ],
             ),
           ),
-
           actions: [
             ElevatedButton(
-              onPressed: () {
-                Navigator.pop(context); // close dialog
-              },
+              onPressed: () => Navigator.pop(context),
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color.fromARGB(255, 165, 34, 24),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(6),
-                ),
               ),
-              child: const Text(
-                'Cancel',
-                style: TextStyle(color: Colors.white, fontSize: 20),
-              ),
+              child: const Text('Cancel', style: TextStyle(color: Colors.white, fontSize: 20)),
             ),
-            SizedBox(width: 20),
             ElevatedButton(
               onPressed: () {
                 final reason = reasonController.text.trim();
@@ -186,19 +205,13 @@ class __RequestroomState extends State<Requestroompage> {
                   );
                   return;
                 }
-                Navigator.pop(context); // close dialog
+                Navigator.pop(context);
                 bookingRoom(roomId, timeSlot, reason);
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color.fromARGB(255, 53, 151, 56),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(6),
-                ),
               ),
-              child: const Text(
-                'Confirm',
-                style: TextStyle(color: Colors.white, fontSize: 20),
-              ),
+              child: const Text('Confirm', style: TextStyle(color: Colors.white, fontSize: 20)),
             ),
           ],
         );
@@ -206,7 +219,6 @@ class __RequestroomState extends State<Requestroompage> {
     );
   }
 
-  // helper to build one small room block
   Widget buildSingleRoom(
     int roomId,
     String title,
@@ -224,44 +236,50 @@ class __RequestroomState extends State<Requestroompage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            title,
-            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-          ),
+          Text(title, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
           Text(description, style: const TextStyle(fontSize: 18)),
           const SizedBox(height: 10),
-          ...timeSlots.entries.map(
-            (slot) => Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(slot.key, style: const TextStyle(fontSize: 17)),
-                SizedBox(height: 30),
-                ElevatedButton(
-                  onPressed: () => showBookingDialog(roomId, title, slot.key),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color.fromARGB(255, 77, 156, 80),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 5,
-                    ), // smaller height
-                  ),
-                  child: const Text(
-                    'Request',
-                    style: TextStyle(fontSize: 14, color: Colors.white),
-                  ),
+        ...timeSlots.entries.map((slot) {
+        // find matching booking by status only (ignore room/time)
+        final booking = getRoomstatus.firstWhere(
+          (b) => b['booking_status'] != null,
+          orElse: () => null as dynamic,
+        );
+
+        final status = booking?['booking_status'] ?? 'free';
+        final isEnabled = status == 'free' || status == 'reject';
+
+        return Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(slot.key, style: const TextStyle(fontSize: 17)),
+            ElevatedButton(
+              onPressed: isEnabled
+                  ? () => showBookingDialog(roomId, title, slot.key)
+                  : null,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: isEnabled
+                    ? const Color.fromARGB(255, 77, 156, 80) // green
+                    : Colors.grey, // grey
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(6),
                 ),
-              ],
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 5),
+              ),
+              child: const Text(
+                'Request',
+                style: TextStyle(fontSize: 14, color: Colors.white),
+              ),
             ),
-          ),
+          ],
+        );
+      }),
+
         ],
       ),
     );
   }
 
-  // each page contains 2 rooms
   Widget buildRoomPage(List<dynamic> pair) {
     return SingleChildScrollView(
       child: Column(
@@ -281,70 +299,74 @@ class __RequestroomState extends State<Requestroompage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Color.fromARGB(255, 241, 229, 229),
+      backgroundColor: const Color.fromARGB(255, 241, 229, 229),
       body: isLoading
           ? const Center(child: CircularProgressIndicator())
           : rooms.isEmpty
-          ? const Center(child: Text('No rooms found.'))
-          : SafeArea(
-              child: Column(
-                children: [
-                  // Search bar
-                  Padding(
-                    padding: const EdgeInsets.all(20),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFAF5F5),
-                        border: Border.all(color: Colors.black, width: 1),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.search),
-                          const SizedBox(width: 5),
-                          Expanded(
-                            child: TextField(
-                              decoration: const InputDecoration(
-                                hintText: 'Search room',
-                                focusedBorder: InputBorder.none,
-                                enabledBorder: InputBorder.none,
-                              ),
-                              controller: controllerSearch,
-                              onChanged: searchRoom
-                            ),
+              ? const Center(child: Text('No rooms found.'))
+              : SafeArea(
+                  child: Column(
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.all(20),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFAF5F5),
+                            border: Border.all(color: Colors.black, width: 1),
+                            borderRadius: BorderRadius.circular(6),
                           ),
-                          IconButton(
-                            icon: const Icon(Icons.cancel_outlined),
-                            onPressed: () {
-                              setState((){ controllerSearch.clear();  searchRoom('');});
+                          child: Row(
+                            children: [
+                              const Icon(Icons.search),
+                              const SizedBox(width: 5),
+                              Expanded(
+                                child: TextField(
+                                  decoration: const InputDecoration(
+                                    hintText: 'Search room',
+                                    focusedBorder: InputBorder.none,
+                                    enabledBorder: InputBorder.none,
+                                  ),
+                                  controller: controllerSearch,
+                                  onChanged: searchRoom,
+                                ),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.cancel_outlined),
+                                onPressed: () {
+                                  setState(() {
+                                    controllerSearch.clear();
+                                    searchRoom('');
+                                  });
+                                },
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      Expanded(
+                        child: RefreshIndicator(
+                          onRefresh: () async {
+                            await fetchRooms();
+                            await fetchStatus();
+                          },
+                          child: ListView.builder(
+                            padding: const EdgeInsets.all(10),
+                            itemCount: (filteredRooms.length / 2).ceil(),
+                            itemBuilder: (context, index) {
+                              final start = index * 2;
+                              final end = (start + 2 > filteredRooms.length)
+                                  ? filteredRooms.length
+                                  : start + 2;
+                              final pair = filteredRooms.sublist(start, end);
+                              return buildRoomPage(pair);
                             },
                           ),
-                        ],
+                        ),
                       ),
-                    ),
+                    ],
                   ),
-
-                  Expanded(
-                    child: RefreshIndicator(
-                      onRefresh: fetchRooms,
-                      child: ListView.builder(
-                        padding: const EdgeInsets.all(10),
-                        itemCount: (filteredRooms.length / 2).ceil(),
-                        itemBuilder: (context, index) {
-                          final start = index * 2;
-                          final end = (start + 2 > filteredRooms.length)
-                              ? filteredRooms.length
-                              : start + 2;
-                          final pair = filteredRooms.sublist(start, end);
-                          return buildRoomPage(pair);
-                        },
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
+                ),
     );
   }
 }
