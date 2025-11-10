@@ -38,7 +38,7 @@ app.use('/public', express.static(path.join(__dirname, "public")));
 app.use(express.json());
 
 
-const timesim = 9; // ทดสอบเวลา: Ex. timesim = 9, null = ใช้เวลาจริง.  timesim=6 reset สถานะ
+const timesim = 10; // ทดสอบเวลา: Ex. timesim = 9, null = ใช้เวลาจริง.  timesim=6 reset สถานะ
 
 // Return a Date object adjusted for simulated time
 function getNowDate() {
@@ -668,8 +668,7 @@ app.get("/rooms/check/info", async function (req, res) {
 // ]
 app.get('/rooms/manage/info', async function (req, res) {
   if (!req.session?.userId || req.session?.userRole !== "1") {
-    res.status(401).json({ message: "Unauthorized - Staff access required" });
-    return;
+    return res.status(401).json({ message: "Unauthorized - Staff access required" });
   }
 
   try {
@@ -687,22 +686,38 @@ app.get('/rooms/manage/info', async function (req, res) {
         FROM room
         ORDER BY room_name
       `;
-
       const [result] = await connection.query(sql);
 
-      // Map slot labels
+      const currentHour = getCurrentHourFrac();
+      const now = getNowDate();
+      const todayIso = now.toISOString().split("T")[0];
+
+      // Slot start-end times
+      const slotRanges = {
+        timestatus8: [8, 10],
+        timestatus10: [10, 12],
+        timestatus13: [13, 15],
+        timestatus15: [15, 17],
+      };
+
       const timeMap = {
         timestatus8: "08:00 - 10:00",
         timestatus10: "10:00 - 12:00",
         timestatus13: "13:00 - 15:00",
-        timestatus15: "15:00 - 17:00"
+        timestatus15: "15:00 - 17:00",
       };
 
-      // Filter only Free and Disable slots
       const formatted = result.map(room => {
         const timeSlots = {};
+
         for (const [key, label] of Object.entries(timeMap)) {
-          if (room[key] === "Free" || room[key] === "Disable") {
+          const [start, end] = slotRanges[key];
+
+          // ✅ Show only upcoming or disabled slots
+          if (
+            room[key] === "Disable" || // always show Disable
+            (room[key] === "Free" && end > currentHour)
+          ) {
             timeSlots[label] = room[key];
           }
         }
@@ -711,9 +726,9 @@ app.get('/rooms/manage/info', async function (req, res) {
           room_id: room.room_id,
           room_name: room.room_name,
           room_description: room.room_description,
-          timeSlots
+          timeSlots,
         };
-      }).filter(room => Object.keys(room.timeSlots).length > 0); // keep only rooms with at least 1 valid slot
+      }).filter(room => Object.keys(room.timeSlots).length > 0);
 
       res.status(200).json(formatted);
     } finally {
@@ -724,6 +739,7 @@ app.get('/rooms/manage/info', async function (req, res) {
     res.status(500).json({ message: "Database Server Error" });
   }
 });
+
 
 
 
@@ -938,67 +954,76 @@ app.put('/rooms/manage/enaanddis', async function (req, res) {
 //     "reservedSlots": "0",
 //     "disabledSlots": "4"
 // }
-app.get("/slotdashboard", function (req, res) {
-  // Check if user is logged in and has appropriate role
+app.get("/slotdashboard", async function (req, res) {
   if (
     !req.session?.userId ||
     (req.session?.userRole !== "1" && req.session?.userRole !== "2")
   ) {
-    res.status(401).json({ message: "Unauthorized" });
-    return;
+    return res.status(401).json({ message: "Unauthorized" });
   }
 
-  const query = `
+  const currentHour = getCurrentHourFrac();
+  const now = getNowDate();
+
+  // Map slot end times
+  const slotEnds = { 8: 10, 10: 12, 13: 15, 15: 17 };
+
+  try {
+    const [rows] = await pool.promise().query(`
       SELECT 
-          -- 1. นับ Free Slots (นับ Slot)
-          SUM(CASE WHEN timestatus8 = 'Free' THEN 1 ELSE 0 END 
-              + CASE WHEN timestatus10 = 'Free' THEN 1 ELSE 0 END 
-              + CASE WHEN timestatus13 = 'Free' THEN 1 ELSE 0 END 
-              + CASE WHEN timestatus15 = 'Free' THEN 1 ELSE 0 END) AS freeSlots,
+          timestatus8, timestatus10, timestatus13, timestatus15
+      FROM room
+    `);
 
-          -- 2. นับ Pending Slots (นับ Slot)
-          SUM(CASE WHEN timestatus8 = 'Pending' THEN 1 ELSE 0 END 
-              + CASE WHEN timestatus10 = 'Pending' THEN 1 ELSE 0 END 
-              + CASE WHEN timestatus13 = 'Pending' THEN 1 ELSE 0 END 
-              + CASE WHEN timestatus15 = 'Pending' THEN 1 ELSE 0 END) AS pendingSlots,
+    let free = 0, pending = 0, reserved = 0, disabled = 0;
 
-          -- 3. นับ Reserved Slots (นับ Slot)
-          SUM(CASE WHEN timestatus8 = 'Reserved' THEN 1 ELSE 0 END 
-              + CASE WHEN timestatus10 = 'Reserved' THEN 1 ELSE 0 END 
-              + CASE WHEN timestatus13 = 'Reserved' THEN 1 ELSE 0 END 
-              + CASE WHEN timestatus15 = 'Reserved' THEN 1 ELSE 0 END) AS reservedSlots,
+    for (const row of rows) {
+      const statuses = {
+        8: row.timestatus8,
+        10: row.timestatus10,
+        13: row.timestatus13,
+        15: row.timestatus15
+      };
 
-          -- 4. นับ Disabled Rooms (นับห้องที่ทุก Slot ถูก Disable) 🟢 แก้ไขตรงนี้
-          SUM(CASE WHEN timestatus8 = 'Disable' 
-                   AND timestatus10 = 'Disable' 
-                   AND timestatus13 = 'Disable' 
-                   AND timestatus15 = 'Disable' 
-              THEN 1 ELSE 0 END) AS disabledRooms
-      FROM room;
-  `;
+      // Count only slots whose end time > current time
+      for (const [slotStart, status] of Object.entries(statuses)) {
+        if (slotEnds[slotStart] > currentHour) {
+          if (status === "Free") free++;
+          else if (status === "Pending") pending++;
+          else if (status === "Reserved") reserved++;
+        }
+      }
 
-  pool.query(query, (err, result) => {
-    if (err) {
-      console.error("Database error:", err);
-      return res.status(500).json({ message: "Database error" });
+      // Disabled if *all* slots are Disable
+      if (
+        row.timestatus8 === "Disable" &&
+        row.timestatus10 === "Disable" &&
+        row.timestatus13 === "Disable" &&
+        row.timestatus15 === "Disable"
+      ) {
+        disabled++;
+      }
     }
 
-    // Format current date as DD/MM/YYYY
-    const today = getNowDate();
-    const formattedDate = `${today.getDate().toString().padStart(2, "0")}/${(today.getMonth() + 1)
+    const formattedDate = `${now
+      .getDate()
       .toString()
-      .padStart(2, "0")}/${today.getFullYear()}`;
+      .padStart(2, "0")}/${(now.getMonth() + 1)
+      .toString()
+      .padStart(2, "0")}/${now.getFullYear()}`;
 
-    // Combine date with slot summary
     res.status(200).json({
       date: formattedDate,
-      // 🔴 ส่ง 'disabledRooms' กลับไปในคีย์ 'disabledSlots'
-      freeSlots: result[0].freeSlots.toString(), 
-      pendingSlots: result[0].pendingSlots.toString(),
-      reservedSlots: result[0].reservedSlots.toString(),
-      disabledSlots: result[0].disabledRooms.toString(), // ใช้ disabledRooms ในคีย์ disabledSlots เพื่อไม่แก้ Flutter code
+      currentHour,
+      freeSlots: free.toString(),
+      pendingSlots: pending.toString(),
+      reservedSlots: reserved.toString(),
+      disabledSlots: disabled.toString()
     });
-  });
+  } catch (err) {
+    console.error("Database error:", err);
+    res.status(500).json({ message: "Database error" });
+  }
 });
 
 
