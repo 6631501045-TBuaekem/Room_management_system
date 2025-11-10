@@ -38,7 +38,7 @@ app.use('/public', express.static(path.join(__dirname, "public")));
 app.use(express.json());
 
 
-const timesim = 10; // ทดสอบเวลา: Ex. timesim = 9, null = ใช้เวลาจริง.  timesim=6 reset สถานะ
+const timesim = 13; // ทดสอบเวลา: Ex. timesim = 9, null = ใช้เวลาจริง.  timesim=6 reset สถานะ
 
 // Return a Date object adjusted for simulated time
 function getNowDate() {
@@ -1215,8 +1215,7 @@ app.post("/update-requests", async function (req, res) {
 // ]
 app.get("/history/info", function (req, res) {
   if (!req.session?.userId) {
-    res.status(401).json({ message: "Unauthorized - Please login first" });
-    return;
+    return res.status(401).json({ message: "Unauthorized - Please login first" });
   }
 
   const userId = req.session.userId;
@@ -1238,7 +1237,7 @@ app.get("/history/info", function (req, res) {
         JOIN users u ON b.User_id = u.UserID
         LEFT JOIN users a ON b.approve_id = a.UserID
         WHERE b.User_id = ?
-        ORDER BY b.booking_date DESC, b.booking_time DESC
+        ORDER BY b.booking_date DESC, b.booking_time DESC, b.created_at DESC
       `;
       params = [userId];
       break;
@@ -1255,7 +1254,7 @@ app.get("/history/info", function (req, res) {
         JOIN room r ON b.room_id = r.room_id
         JOIN users u ON b.User_id = u.UserID
         LEFT JOIN users a ON b.approve_id = a.UserID
-        ORDER BY b.booking_date DESC, b.booking_time DESC
+        ORDER BY b.booking_date DESC, b.booking_time DESC, b.created_at DESC
       `;
       params = [];
       break;
@@ -1273,14 +1272,13 @@ app.get("/history/info", function (req, res) {
         JOIN users u ON b.User_id = u.UserID
         LEFT JOIN users a ON b.approve_id = a.UserID
         WHERE b.approve_id = ? OR b.booking_status = 'pending'
-        ORDER BY b.booking_date DESC, b.booking_time DESC
+        ORDER BY b.booking_date DESC, b.booking_time DESC, b.created_at DESC
       `;
       params = [userId];
       break;
 
     default:
-      res.status(401).json({ message: "Unauthorized - Invalid role" });
-      return;
+      return res.status(401).json({ message: "Unauthorized - Invalid role" });
   }
 
   pool.query(sql, params, function (err, results) {
@@ -1297,16 +1295,13 @@ app.get("/history/info", function (req, res) {
     };
 
     const formattedResults = results.map(booking => {
-      // 🔹 Date in DD/MM/YY (+543 for Buddhist year)
-        const date = new Date(booking.booking_date);
-        const formattedDate = `${date.getDate()}/${date.getMonth() + 1}/${date.getFullYear().toString().slice(-2)}`;
+      const date = new Date(booking.booking_date);
+      const formattedDate = `${date.getDate()}/${date.getMonth() + 1}/${date.getFullYear().toString().slice(-2)}`;
 
-      // 🔹 Timestamp for when booking was created (not current)
       const timeSource = booking.created_at || booking.timestamp || booking.booking_date;
       const timeObj = new Date(timeSource);
       const formattedTime = `${timeObj.getHours().toString().padStart(2, "0")}:${timeObj.getMinutes().toString().padStart(2, "0")}`;
 
-      // 🔹 Approver name handling
       let displayApproverName = booking.approver_name;
       if (!displayApproverName && booking.booking_status === "reject") {
         displayApproverName = "System";
@@ -1314,7 +1309,6 @@ app.get("/history/info", function (req, res) {
         displayApproverName = "-";
       }
 
-      // 🔹 Add time slot label
       const bookingSlot = timeSlotMap[booking.booking_time?.toString()] || "Unknown";
 
       return {
@@ -1331,6 +1325,7 @@ app.get("/history/info", function (req, res) {
     res.status(200).json(formattedResults);
   });
 });
+
 
 
 

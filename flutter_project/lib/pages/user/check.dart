@@ -96,7 +96,18 @@ class __CheckroomState extends State<Checkroompage> {
                 Text(timeSlots, style: TextStyle(fontSize: 17)),
                 Text(
                   '${status[0].toUpperCase()}${status.substring(1)}',
-                  style: TextStyle(fontSize: 17),
+                  style: TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.bold,
+                    color: status.toLowerCase() == 'approve'
+                    ? Colors.green
+                    : status.toLowerCase() == 'pending'
+                        ? Colors.orange
+                        : status.toLowerCase() == 'reject'
+                            ? Colors.red
+                            : Colors.black,
+                  
+                  ),
                 ),
               ],
             ),
@@ -108,7 +119,10 @@ class __CheckroomState extends State<Checkroompage> {
                 'Your reason: ',
                 style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
               ),
-              Text(reason, style: TextStyle(fontSize: 17)),
+              Text(reason, style: TextStyle(
+                fontSize: 17,
+              )),
+              
             ],
           ),
           if (status.toLowerCase() == 'reject') 
