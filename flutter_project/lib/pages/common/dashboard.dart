@@ -216,6 +216,7 @@ class _DashboardpageState extends State<Dashboardpage> {
 
                     _totalRoomSection(),
 
+                    SizedBox(height: 20),
                     Row(
                       children: [
                         Expanded(child: _statusTile("Free", labels["Free"]!)),
