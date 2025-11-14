@@ -1,14 +1,11 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-// ปรับ path ให้ถูกต้องตามโครงสร้าง project ของคุณ
-import '../../utills/session_cilent.dart';
+import '../../utills/http_cilent.dart';  // USE JWT CLIENT
 
-// URL ฐานของ API Server
-final String baseUrl = 'http://10.0.2.2:3005';
+final String baseUrl = "http://10.0.2.2:3005";
 
-// -------------------------------------------------------------------
-// Class สำหรับโครงสร้างข้อมูลจำลองของแต่ละรายการใน History
+
 class HistoryEntry {
   final String location;
   final String timeRange;
@@ -26,339 +23,262 @@ class HistoryEntry {
     this.approvedBy,
   });
 
-  // Factory constructor สำหรับสร้าง object จาก JSON response ของ /history/info
   factory HistoryEntry.fromJson(Map<String, dynamic> json) {
     final String fullDateTime =
-        '${json['booking_date']} ${json['booking_time']}';
-    final String status = json['status'] as String;
+        "${json['booking_date']} ${json['booking_time']}";
+    final String status = json['status'];
     final String formattedStatus =
-        status.substring(0, 1).toUpperCase() +
-        status.substring(1).toLowerCase();
+        status[0].toUpperCase() + status.substring(1).toLowerCase();
 
-    final String? approver =
-        (json['approver_name'] != '-' && json['approver_name'] != null)
-        ? json['approver_name'] as String?
+    final String? approver = (json['approver_name'] != "-" &&
+            json['approver_name'] != null)
+        ? json['approver_name']
         : null;
 
     return HistoryEntry(
-      json['room'] as String, // location (room)
-      json['booking_timeslot'] as String, // timeRange (booking_timeslot)
-      fullDateTime, // dateTime
-      formattedStatus, // Status (Approve/Reject/Pending)
-      json['booker_name'] as String, // user (booker_name)
-      approvedBy: approver, // approvedBy
+      json['room'],
+      json['booking_timeslot'],
+      fullDateTime,
+      formattedStatus,
+      json['booker_name'],
+      approvedBy: approver,
     );
   }
 }
 
-// กำหนด Role Type
-enum UserRole {
-  Student, // role = "0"
-  Staff, // role = "1"
-  Approver, // role = "2"
-}
-
+// =====================================================
+// WIDGET
+// =====================================================
 class Historypage extends StatefulWidget {
-  // ข้อมูล Role ที่มาจาก Login
-  final UserRole userRole;
   final String currentRoleCode; // "0", "1", "2"
 
-  const Historypage({
-    super.key,
-    // ทำให้ currentRoleCode เป็น Optional เพื่อให้ const Historypage() ใน main.dart ไม่แดง
-    this.currentRoleCode = "0",
-  }) : userRole = (currentRoleCode == "0")
-           ? UserRole.Student
-           : (currentRoleCode == "1" ? UserRole.Staff : UserRole.Approver);
+  const Historypage({super.key, this.currentRoleCode = "0"});
 
   @override
-  State<Historypage> createState() => __HistoryState();
+  State<Historypage> createState() => _HistorypageState();
 }
 
-class __HistoryState extends State<Historypage> {
-  final SessionHttpClient _apiClient = SessionHttpClient();
+class _HistorypageState extends State<Historypage> {
   List<HistoryEntry> _historyData = [];
   bool _isLoading = true;
   String? _error;
-
-  // 🌟 State ใหม่: สำหรับเก็บ Role Code ที่ดึงมาจาก API /profile
   String? _currentRole;
 
   @override
   void initState() {
     super.initState();
-    _fetchProfileRole(); // 🌟 ขั้นตอนที่ 1: ดึง Role จาก /profile
+    _loadAll();
   }
 
-  // 🌟 ฟังก์ชันใหม่: ดึง Role Code จาก /profile (ใช้สำหรับ initial load และ pull-to-refresh)
-  Future<void> _fetchProfileRole() async {
-    // ไม่ต้อง setState เพื่อ _isLoading = true ถ้าถูกเรียกจาก RefreshIndicator
-    if (!_isLoading) {
+  // โหลดโปรไฟล์ก่อน แล้วโหลด history
+  Future<void> _loadAll() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    final ok = await _fetchProfileRole();
+    if (ok) await _fetchHistoryData();
+
+    if (mounted) {
       setState(() {
-        _isLoading = true;
-        _error = null;
+        _isLoading = false;
       });
     }
+  }
 
+  // เอา role จาก profile
+  Future<bool> _fetchProfileRole() async {
     try {
-      final http.Response response = await _apiClient.get(
-        Uri.parse('$baseUrl/profile'),
-      );
-
-      if (response.statusCode == 200) {
-        final Map<String, dynamic> profileData = json.decode(response.body);
-        _currentRole = profileData['role'] as String?; // เก็บ Role Code จริง
-        if (_currentRole != null) {
-          await _fetchHistoryData(); // เมื่อได้ Role Code แล้ว ค่อยไปดึง History
-        } else {
-          _error = 'Failed to fetch user role from profile.';
-        }
-      } else if (response.statusCode == 401) {
-        _error = 'Unauthorized. Please login again.';
+      final http.Response res =
+          await HttpClient.get(Uri.parse("$baseUrl/profile"));
+      if (res.statusCode == 200) {
+        final data = json.decode(res.body);
+        _currentRole = data['role']?.toString();
+        return _currentRole != null;
       } else {
-        _error = 'Failed to load profile: Status ${response.statusCode}';
+        _error = "Failed to load profile (${res.statusCode})";
+        return false;
       }
     } catch (e) {
-      _error = 'Connection error during profile fetch: $e';
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
+      _error = "Connection error (profile): $e";
+      return false;
     }
   }
 
-  // ฟังก์ชันสำหรับดึงข้อมูลประวัติจาก Backend
+  // เอาประวัติ
   Future<void> _fetchHistoryData() async {
-    if (_currentRole == null) {
-      _error = _error ?? 'Authentication check failed.';
-      return;
-    }
-
     try {
-      final http.Response response = await _apiClient.get(
-        Uri.parse('$baseUrl/history/info'),
-      );
+      final http.Response res =
+          await HttpClient.get(Uri.parse("$baseUrl/history/info"));
 
-      if (response.statusCode == 200) {
-        final List<dynamic> rawData = json.decode(response.body);
-        _historyData = rawData
-            .map((json) => HistoryEntry.fromJson(json))
-            .where(
-              (entry) => entry.status != 'Pending',
-            ) // กรองสถานะ Pending ออก
+      if (res.statusCode == 200) {
+        final List raw = json.decode(res.body);
+        _historyData = raw
+            .map((e) => HistoryEntry.fromJson(e))
+            .where((entry) => entry.status != "Pending")
             .toList();
-      } else if (response.statusCode == 401) {
-        _error = 'Unauthorized. Please login again.';
       } else {
-        _error = 'Failed to load history: Status ${response.statusCode}';
+        _error = "Failed to load history (${res.statusCode})";
       }
     } catch (e) {
-      _error = 'Connection error during history fetch: $e';
+      _error = "Connection error (history): $e";
     }
   }
 
-  // Widget สำหรับสร้างรายการประวัติแต่ละบล็อก
+
   Widget _buildHistoryItem(HistoryEntry entry) {
-    // 🌟 ใช้ _currentRole แทน widget.currentRoleCode
-    final String actualRole = _currentRole ?? '0';
-    final bool isRejected = entry.status == 'Reject';
-    final bool isStudent = actualRole == "0";
+    final String role = _currentRole ?? "0";
+    final bool isStudent = role == "0";
+    final bool isStaff = role == "1";
+    final bool isRejected = entry.status == "Reject";
 
-    // สถานะที่เหลือจะเป็น Approve หรือ Reject
-    final Color statusColor = isRejected ? Colors.red : Colors.green;
+    final statusColor = isRejected ? Colors.red : Colors.green;
 
-    // **ตรรกะการแสดงผล Approve by (แถวแยกต่างหาก):**
-    // แสดงเฉพาะ Staff Role "1" ที่มีการอนุมัติ/ปฏิเสธแล้วเท่านั้น
-    final bool isRole1Staff = actualRole == "1";
+    final String thirdHeader = isStudent ? "Approve by" : "User";
+    final String thirdData = isStudent ? (entry.approvedBy ?? "-") : entry.user;
 
-    final bool shouldShowApprovedByBelow =
-        isRole1Staff && entry.approvedBy != null;
-
-    // กำหนดหัวข้อคอลัมน์ที่ 3 และข้อมูล
-    final String thirdColumnHeader = isStudent ? 'Approve by' : 'User';
-    final String thirdColumnData = isStudent
-        ? (entry.approvedBy ?? '-')
-        : entry.user;
+    final bool showApprovedBelow = isStaff && entry.approvedBy != null;
 
     return Card(
-      margin: const EdgeInsets.symmetric(
-        horizontal: 20.0,
-        vertical: 10.0,
-      ), // มีระยะห่างระหว่าง Card
+      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+      elevation: 4,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(15.0),
-        side: BorderSide(
-          color: statusColor.withOpacity(0.7), // ใช้สีสถานะเป็นขอบอ่อนๆ
-          width: 2,
-        ),
+        borderRadius: BorderRadius.circular(14),
+        side: BorderSide(color: statusColor, width: 2),
       ),
-      elevation: 4, // เพิ่มเงา
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 20.0),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 18),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // 1. Location and Time Header (Centered)
+            // Room Name + Time Slot
             Center(
               child: Column(
                 children: [
-                  Text(
-                    entry.location,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 25,
-                    ),
-                  ),
-                  Text(entry.timeRange, style: const TextStyle(fontSize: 20)),
+                  Text(entry.location,
+                      style:
+                          const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+                  Text(entry.timeRange,
+                      style: const TextStyle(fontSize: 18, color: Colors.black87)),
                 ],
               ),
             ),
-            const SizedBox(height: 30),
 
-            // 2. Column Headers (Date/Time, status, User/Approve by)
+            const SizedBox(height: 18),
+
+            // Header Row
             Row(
               children: [
                 const Expanded(
                   flex: 3,
-                  child: Text(
-                    'Date/Time',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-                    textAlign: TextAlign.center,
-                  ),
+                  child: Text("Date/Time",
+                      textAlign: TextAlign.center,
+                      style:
+                          TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
                 ),
                 const Expanded(
                   flex: 4,
-                  child: Text(
-                    'Status',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-                    textAlign: TextAlign.center,
-                  ),
+                  child: Text("Status",
+                      textAlign: TextAlign.center,
+                      style:
+                          TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
                 ),
                 Expanded(
                   flex: 3,
-                  child: Text(
-                    thirdColumnHeader,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 18,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
+                  child: Text(thirdHeader,
+                      textAlign: TextAlign.center,
+                      style:
+                          const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
                 ),
               ],
             ),
-            const SizedBox(height: 15),
 
-            // 3. Data Row
+            const SizedBox(height: 14),
+
+            // Data Row
             Row(
               children: [
                 Expanded(
                   flex: 3,
-                  child: Text(
-                    entry.dateTime,
-                    style: const TextStyle(fontSize: 18),
-                    textAlign: TextAlign.center,
-                  ),
+                  child: Text(entry.dateTime,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(fontSize: 17)),
                 ),
                 Expanded(
                   flex: 4,
-                  child: Text(
-                    entry.status,
-                    style: TextStyle(
-                      color: statusColor,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 18,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
+                  child: Text(entry.status,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.bold,
+                          color: statusColor)),
                 ),
                 Expanded(
                   flex: 3,
-                  child: Text(
-                    thirdColumnData,
-                    style: const TextStyle(fontSize: 18),
-                    textAlign: TextAlign.center,
-                  ),
+                  child: Text(thirdData,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(fontSize: 17)),
                 ),
               ],
             ),
 
-            // 4. Approve by Row (แถวแยกต่างหาก - เฉพาะ Staff Role 1)
-            if (shouldShowApprovedByBelow && !isStudent) ...[
-              const SizedBox(height: 20), // ลดช่องว่างลงเล็กน้อย
-              const Divider(
-                color: Colors.black26,
-              ), // เพิ่ม Divider เล็กๆ ใน Card
-              const SizedBox(height: 10),
+            if (showApprovedBelow) ...[
+              const SizedBox(height: 12),
+              const Divider(),
+              const SizedBox(height: 6),
               Row(
-                // 🌟 ปรับเป็น spaceBetween
-                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text(
-                    'Approved by: ',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
-                  SizedBox(width: 120),
-                  // ลบ SizedBox(width: 100) ทิ้ง เพราะใช้ mainAxisAlignment: spaceBetween
-                  Text(entry.approvedBy!, style: const TextStyle(fontSize: 18)),
+                  const Text("Approved by:",
+                      style:
+                          TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  Text(entry.approvedBy!,
+                      style: const TextStyle(fontSize: 18)),
                 ],
               ),
-            ],
+            ]
           ],
         ),
       ),
     );
   }
 
+// ฟังก์ชันหลัก
   @override
   Widget build(BuildContext context) {
-    Widget bodyContent;
+    Widget body;
 
     if (_isLoading) {
-      bodyContent = const Center(child: CircularProgressIndicator());
+      body = const Center(child: CircularProgressIndicator());
     } else if (_error != null) {
-      bodyContent = Center(
-        child: Text(
-          'Error: $_error\n\nTry checking server or login status.',
-          textAlign: TextAlign.center,
-        ),
-      );
+      body = Center(child: Text("Error: $_error"));
     } else if (_historyData.isEmpty) {
-      bodyContent = const Center(
-        child: Text('No history found (Only showing Approve/Reject).'),
-      );
+      body = const Center(child: Text("No history found."));
     } else {
-      bodyContent = ListView.builder(
+      body = ListView.builder(
         itemCount: _historyData.length,
-        itemBuilder: (context, index) {
-          return _buildHistoryItem(_historyData[index]);
-        },
+        itemBuilder: (_, i) => _buildHistoryItem(_historyData[i]),
       );
     }
 
-    // 🌟 ห่อหุ้ม bodyContent ด้วย RefreshIndicator
     return Scaffold(
       backgroundColor: const Color(0xFFFBF6F4),
       appBar: AppBar(
-        title: Text(
-          'History',
-          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 30),
-        ),
+        title: const Text("History",
+            style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
         centerTitle: true,
-        foregroundColor: Colors.black,
-        elevation: 0,
         backgroundColor: const Color(0xFFFBF6F4),
+        elevation: 0,
+        foregroundColor: Colors.black,
         bottom: const PreferredSize(
-          preferredSize: Size.fromHeight(1.0),
-          child: Divider(color: Colors.grey, thickness: 1, height: 1),
+          preferredSize: Size.fromHeight(1),
+          child: Divider(height: 1, color: Colors.grey),
         ),
       ),
       body: RefreshIndicator(
-        // 👈 เพิ่ม RefreshIndicator
-        onRefresh: _fetchProfileRole, // เรียกฟังก์ชันดึงข้อมูลทั้งหมดใหม่
-        child: bodyContent,
+        onRefresh: _loadAll,
+        child: body,
       ),
     );
   }

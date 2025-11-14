@@ -1,8 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import '../../utills/session_cilent.dart';
-
-final session = SessionHttpClient();
+import '../../utills/http_cilent.dart';  // <-- Correct file
 
 class Browseroompage extends StatefulWidget {
   const Browseroompage({super.key});
@@ -29,35 +27,38 @@ class _BrowseRoomPageState extends State<Browseroompage> {
     super.dispose();
   }
 
-  /// 🧠 ดึงข้อมูลจาก API จริง
+  /// Fetch room info from API using JWT token
   Future<void> _fetchRooms() async {
     setState(() => _loading = true);
+
     try {
-      final selectedDate = DateTime.now();
+      final now = DateTime.now();
       final dateStr =
-          "${selectedDate.year}-${selectedDate.month.toString().padLeft(2, '0')}-${selectedDate.day.toString().padLeft(2, '0')}";
+          "${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}";
 
-      final url = Uri.parse('http://10.0.2.2:3005/rooms/info?date=$dateStr');
-      final response = await session.get(url);
+      final url = Uri.parse(
+          'http://10.0.2.2:3005/rooms/info?date=$dateStr');
 
-      debugPrint("Status code: ${response.statusCode}");
+      final response = await HttpClient.get(url);
+
+      debugPrint("Status: ${response.statusCode}");
       debugPrint("Body: ${response.body}");
 
       if (response.statusCode == 200) {
-        final List data = jsonDecode(response.body) as List<dynamic>;
+        final List data = jsonDecode(response.body);
         setState(() {
           _rooms = data;
           _loading = false;
         });
       } else if (response.statusCode == 401) {
-        debugPrint("❌ Unauthorized — please login first");
+        debugPrint("❌ Unauthorized — token missing or invalid");
         setState(() => _loading = false);
       } else {
-        debugPrint("❌ Error: ${response.statusCode}");
+        debugPrint("❌ Server error: ${response.statusCode}");
         setState(() => _loading = false);
       }
     } catch (e) {
-      debugPrint("❌ Error fetching rooms: $e");
+      debugPrint("❌ Fetch error: $e");
       setState(() => _loading = false);
     }
   }
@@ -89,10 +90,10 @@ class _BrowseRoomPageState extends State<Browseroompage> {
                     ),
                     const SizedBox(height: 12),
 
-                    // 🔍 Search bar
+                    // Search bar
                     Container(
-                      padding:
-                          const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 4),
                       decoration: BoxDecoration(
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(8),
@@ -121,57 +122,65 @@ class _BrowseRoomPageState extends State<Browseroompage> {
                                 _searchController.clear();
                                 setState(() => _searchText = '');
                               },
-                              child: const Icon(Icons.close, color: Colors.redAccent),
+                              child: const Icon(Icons.close,
+                                  color: Colors.redAccent),
                             ),
                         ],
                       ),
                     ),
                     const SizedBox(height: 20),
 
-                    // 🏠 Room List
+                    // Room List
                     Expanded(
                       child: RefreshIndicator(
-                      onRefresh: _fetchRooms, // function to call when user pulls down
-                      child: filteredRooms.isEmpty
-                          ? const Center(
-                              child: Text(
-                                'No rooms found',
-                                style: TextStyle(fontSize: 18, color: Colors.black54),
-                              ),
-                            )
-                          : ListView.builder(
-                              itemCount: filteredRooms.length,
-                              itemBuilder: (context, index) {
-                                final room = filteredRooms[index];
+                        onRefresh: _fetchRooms,
+                        child: filteredRooms.isEmpty
+                            ? const Center(
+                                child: Text(
+                                  'No rooms found',
+                                  style: TextStyle(
+                                      fontSize: 18, color: Colors.black54),
+                                ),
+                              )
+                            : ListView.builder(
+                                itemCount: filteredRooms.length,
+                                itemBuilder: (context, index) {
+                                  final room = filteredRooms[index];
 
-                                // แปลง timeSlots Map -> List safely
-                                final timesList = <Map<String, String>>[];
-                                if (room['timeSlots'] != null &&
-                                    room['timeSlots'] is Map) {
-                                  final map = room['timeSlots'] as Map;
-                                  if (map.isEmpty) {
-                                    timesList.add({'time': '-', 'status': 'No slots'});
-                                  } else {
-                                    map.forEach((k, v) {
+                                  final timesList = <Map<String, String>>[];
+
+                                  if (room['timeSlots'] != null &&
+                                      room['timeSlots'] is Map) {
+                                    final map =
+                                        room['timeSlots'] as Map<String, dynamic>;
+
+                                    if (map.isEmpty) {
                                       timesList.add({
-                                        'time': k.toString(),
-                                        'status': v.toString()
+                                        'time': '-',
+                                        'status': 'No slots'
                                       });
-                                    });
+                                    } else {
+                                      map.forEach((key, value) {
+                                        timesList.add({
+                                          'time': key,
+                                          'status': value.toString(),
+                                        });
+                                      });
+                                    }
                                   }
-                                }
 
-                                return Padding(
-                                  padding: const EdgeInsets.only(bottom: 20.0),
-                                  child: _roomCard(
-                                    title: room['room_name'] ?? 'No Name',
-                                    subtitle: room['room_description'] ?? '',
-                                    times: timesList,
-                                  ),
-                                );
-                              },
-                            ),
-                    ),
+                                  return Padding(
+                                    padding: const EdgeInsets.only(bottom: 20),
+                                    child: _roomCard(
+                                      title:
+                                          room['room_name'] ?? 'No Name',
+                                      subtitle: room['room_description'] ?? '',
+                                      times: timesList,
+                                    ),
+                                  );
+                                },
+                              ),
+                      ),
                     ),
                   ],
                 ),
@@ -180,7 +189,7 @@ class _BrowseRoomPageState extends State<Browseroompage> {
     );
   }
 
-  // 🧱 Room Card
+  /// Room card widget
   Widget _roomCard({
     required String title,
     required String subtitle,
@@ -202,7 +211,6 @@ class _BrowseRoomPageState extends State<Browseroompage> {
     }
 
     return Container(
-      width: double.infinity,
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: Colors.white,
@@ -229,20 +237,21 @@ class _BrowseRoomPageState extends State<Browseroompage> {
             children: times.map((t) {
               final time = t['time'] ?? '';
               final status = t['status'] ?? '';
+
               return Padding(
-                padding: const EdgeInsets.symmetric(vertical: 6.0),
+                padding: const EdgeInsets.symmetric(vertical: 6),
                 child: Row(
                   children: [
                     Expanded(
-                        child: Text(time,
-                            style: const TextStyle(fontSize: 16))),
+                      child: Text(time,
+                          style: const TextStyle(fontSize: 16)),
+                    ),
                     Text(
                       status,
                       style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        color: getStatusColor(status),
-                      ),
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: getStatusColor(status)),
                     ),
                   ],
                 ),

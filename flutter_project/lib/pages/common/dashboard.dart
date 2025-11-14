@@ -1,9 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:convert';
-import '../../utills/session_cilent.dart'; // นำเข้า SessionHttpClient
-
-// 🟢 Global Singleton Instance: ใช้ตัวเดียวกับที่ Loginpage ใช้งาน
-final session = SessionHttpClient();
+import '../../utills/http_cilent.dart'; 
 
 class Dashboardpage extends StatefulWidget {
   const Dashboardpage({super.key});
@@ -13,22 +10,19 @@ class Dashboardpage extends StatefulWidget {
 }
 
 class _DashboardpageState extends State<Dashboardpage> {
-  // ใช้ Map<String, dynamic> เก็บข้อมูลที่ได้จาก API
   Map<String, dynamic> _dashboardData = {};
-
-  // 🟢 ใช้ Future<void> ที่สามารถถูกอัปเดตได้
   late Future<void> _fetchDataFuture;
 
   final Map<String, Color> colorMap = {
-    "Total": const Color(0xFF554440),
-    "Available": const Color(0xFF00A550),
-    "Free": const Color(0xFF8DB6A4),
-    "Pending": const Color(0xFFF3C327),
-    "Reserved": const Color(0xFF4D4E8D),
-    "Disabled": const Color(0xFFD62828),
+    "Total": Color(0xFF554440),
+    "Available": Color(0xFF00A550),
+    "Free": Color(0xFF8DB6A4),
+    "Pending": Color(0xFFF3C327),
+    "Reserved": Color(0xFF4D4E8D),
+    "Disabled": Color(0xFFD62828),
   };
 
-  final String baseUrl = 'http://10.0.2.2:3005';
+  final String baseUrl = "http://10.0.2.2:3005";
 
   @override
   void initState() {
@@ -38,67 +32,51 @@ class _DashboardpageState extends State<Dashboardpage> {
 
   // ฟังก์ชันหลักในการดึงข้อมูลและคำนวณ Total Rooms
   Future<void> fetchSlotData() async {
-    final slotUrl = Uri.parse('$baseUrl/slotdashboard');
-    int totalRoomsCount;
-    int availableRoomsCount;
+    final slotUrl = Uri.parse("$baseUrl/slotdashboard");
 
     try {
-      final response = await session.get(slotUrl);
+      final response = await HttpClient.get(slotUrl); // <-- FIXED
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
 
-        final int freeCount =
-            int.tryParse(data['freeSlots']?.toString() ?? '0') ?? 0;
-        final int pendingCount =
-            int.tryParse(data['pendingSlots']?.toString() ?? '0') ?? 0;
-        final int reservedCount =
-            int.tryParse(data['reservedSlots']?.toString() ?? '0') ?? 0;
-        final int disabledRoomsCount =
-            int.tryParse(data['disabledSlots']?.toString() ?? '0') ?? 0;
-
+        final free = int.tryParse("${data['freeSlots']}") ?? 0;
+        final pending = int.tryParse("${data['pendingSlots']}") ?? 0;
+        final reserved = int.tryParse("${data['reservedSlots']}") ?? 0;
+        final disabled = int.tryParse("${data['disabledSlots']}") ?? 0;
+        
         // 1. คำนวณ Active Slots
-        final int activeSlotsCount = freeCount + pendingCount + reservedCount;
-
+        final activeSlots = free + pending + reserved;
         // 2. คำนวณ Available Rooms (Active Slots / 4)
-        availableRoomsCount = (activeSlotsCount / 4).ceil();
+        int availableRooms = (activeSlots / 4).ceil();
+
+        if (availableRooms < 0) availableRooms = 0;      // ป้องกันไม่ให้ค่าน้อยกว่าศูนย์
 
         // 3. คำนวณ Total Rooms (Available Rooms + Disabled Rooms)
-        totalRoomsCount = availableRoomsCount + disabledRoomsCount;
+        final totalRooms = availableRooms + disabled;
 
-        // ป้องกันไม่ให้ค่าน้อยกว่าศูนย์
-        if (availableRoomsCount < 0) {
-          availableRoomsCount = 0;
-        }
+        if (!mounted) return;
 
-        if (mounted) {
-          setState(() {
-            _dashboardData = {
-              "Total": {"count": totalRoomsCount, "key": "Total"},
-              "Available": {"count": availableRoomsCount, "key": "Available"},
-              "Free": {"count": freeCount, "key": "Free"},
-              "Pending": {"count": pendingCount, "key": "Pending"},
-              "Reserved": {"count": reservedCount, "key": "Reserved"},
-              "Disabled": {"count": disabledRoomsCount, "key": "Disabled"},
-              "date": data['date'] ?? 'N/A',
-            };
-          });
-        }
+        setState(() {
+          _dashboardData = {
+            "Total": {"count": totalRooms},
+            "Available": {"count": availableRooms},
+            "Free": {"count": free},
+            "Pending": {"count": pending},
+            "Reserved": {"count": reserved},
+            "Disabled": {"count": disabled},
+            "date": data["date"] ?? "N/A",
+          };
+        });
       } else {
         if (response.statusCode == 401) {
-          throw Exception('Authorization required. Please log in first.');
+          throw Exception("Unauthorized — please login again.");
         }
-        throw Exception(
-          'Failed to load data from API (Status: ${response.statusCode})',
-        );
+        throw Exception("Server error: ${response.statusCode}");
       }
     } catch (e) {
-      print('Error fetching dashboard data: $e');
-      if (mounted) {
-        setState(() {
-          _dashboardData = {};
-        });
-      }
+      print("Dashboard fetch error: $e");
+      if (mounted) setState(() => _dashboardData = {});
       rethrow;
     }
   }
@@ -111,10 +89,9 @@ class _DashboardpageState extends State<Dashboardpage> {
     return _fetchDataFuture;
   }
 
-  // Widget (Free, Pending, Reserved)
-  Widget _buildStatusTile(String key, String label, Map<String, dynamic> data) {
-    final item = data[key] as Map<String, dynamic>?;
-    final count = item?['count']?.toString() ?? '0';
+  Widget _statusTile(String key, String label) {
+    final item = _dashboardData[key] ?? {};
+    final count = item["count"]?.toString() ?? "0";
     final color = colorMap[key] ?? Colors.grey;
 
     return Container(
@@ -126,131 +103,73 @@ class _DashboardpageState extends State<Dashboardpage> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            FittedBox(
-              fit: BoxFit.scaleDown,
-              child: Text(
-                count,
-                style: const TextStyle(
-                  fontSize: 70,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
-              ),
-            ),
-            const SizedBox(height: 5),
-            Text(
-              label,
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 20, color: Colors.white),
-            ),
+            Text(count,
+                style: TextStyle(fontSize: 70, fontWeight: FontWeight.bold, color: Colors.white)),
+            SizedBox(height: 5),
+            Text(label,
+                style: TextStyle(fontSize: 20, color: Colors.white)),
           ],
         ),
       ),
     );
   }
 
-  //  Widget Total Room (Available/Disabled)
-  Widget _buildSubTile(String key, String label, Map<String, dynamic> data) {
-    final item = data[key] as Map<String, dynamic>?;
-    final count = item?['count']?.toString() ?? '0';
+  Widget _subTile(String key, String label) {
+    final count = _dashboardData[key]?["count"]?.toString() ?? "0";
     final color = colorMap[key] ?? Colors.grey;
 
     return Container(
-      height: double.infinity,
       decoration: BoxDecoration(
         color: color,
         borderRadius: BorderRadius.circular(15),
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 5),
-      child: Center(
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            // <<< เพิ่ม Expanded ที่นี่ >>>
-            Expanded(
-              child: Text(
-                label,
-                style: const TextStyle(
-                  fontSize: 15,
-                  color: Colors.white,
-                  fontWeight: FontWeight.w500,
-                ),
-                // เพิ่ม textAlign เพื่อให้แน่ใจว่าข้อความชิดซ้ายภายใน Expanded
-                textAlign: TextAlign.start,
-              ),
-            ),
-            // <<< จบ Expanded ที่นี่ >>>
-            Text(
-              count,
-              style: const TextStyle(
-                fontSize: 25,
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ],
-        ),
+      padding: EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Expanded(
+            child: Text(label,
+                style: TextStyle(fontSize: 15, color: Colors.white)),
+          ),
+          Text(count,
+              style: TextStyle(fontSize: 25, color: Colors.white, fontWeight: FontWeight.bold)),
+        ],
       ),
     );
   }
 
-  // Widget Total Room
-  Widget _buildTotalRoomSection(Map<String, dynamic> data) {
-    // Total และ Disabled ที่คำนวณ/ดึงมา
-    final totalItem = data['Total'] as Map<String, dynamic>?;
-    final totalCount = totalItem?['count']?.toString() ?? '0';
-    final totalColor = colorMap['Total'] ?? Colors.grey;
+  Widget _totalRoomSection() {
+    final totalCount = _dashboardData["Total"]?["count"]?.toString() ?? "0";
 
     return Container(
-      padding: const EdgeInsets.all(20),
-      margin: const EdgeInsets.only(bottom: 20),
       height: 200,
+      padding: EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: totalColor,
+        color: colorMap["Total"],
         borderRadius: BorderRadius.circular(25),
-        border: Border.all(color: Colors.black, width: 2), // ขอบดำ
+        border: Border.all(color: Colors.black, width: 2),
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Row แรก: Total Room Title
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
-                'Total Room',
-                style: TextStyle(
-                  fontSize: 25,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
-              ),
-              Text(
-                totalCount,
-                style: const TextStyle(
-                  fontSize: 25,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
-              ),
+              Text("Total Rooms",
+                  style: TextStyle(fontSize: 25, color: Colors.white)),
+              Text(totalCount,
+                  style: TextStyle(fontSize: 25, fontWeight: FontWeight.bold, color: Colors.white)),
             ],
           ),
           SizedBox(height: 20),
-          // Row ที่สอง: Available และ Disable Tiles
           Expanded(
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                Expanded(
-                  child: _buildSubTile("Available", "Available Rooms", data),
-                ),
-                const SizedBox(width: 20),
-                Expanded(
-                  child: _buildSubTile("Disabled", "Disable Rooms", data),
-                ),
+                Expanded(child: _subTile("Available", "Available")),
+                SizedBox(width: 20),
+                Expanded(child: _subTile("Disabled", "Disabled")),
               ],
             ),
-          ),
+          )
         ],
       ),
     );
@@ -258,150 +177,56 @@ class _DashboardpageState extends State<Dashboardpage> {
 
   @override
   Widget build(BuildContext context) {
-    final String displayDate = _dashboardData['date'] ?? 'Loading...';
+    final date = _dashboardData["date"] ?? "Loading...";
 
-    // Labels สำหรับสถานะที่เหลือ
-    final Map<String, String> tileLabels = {
+    final labels = {
       "Free": "Free Slots",
       "Pending": "Pending Slots",
-      "Reserved": "Reserve Slots",
+      "Reserved": "Reserved Slots",
     };
-    final List<String> tileKeys = ["Free", "Pending", "Reserved"];
 
     return Scaffold(
-      backgroundColor: const Color(0xFFFBF6F4),
+      backgroundColor: Color(0xFFFBF6F4),
       appBar: AppBar(
-        title: const Text(
-          'Dashboard',
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 30),
-        ),
+        title: Text("Dashboard",
+            style: TextStyle(fontSize: 30, fontWeight: FontWeight.bold)),
         centerTitle: true,
-        foregroundColor: Colors.black,
-        backgroundColor: Colors.transparent, // ทำให้ App Bar โปร่งใส
+        backgroundColor: Colors.transparent,
         elevation: 0,
-        bottom: const PreferredSize(
-          preferredSize: Size.fromHeight(1.0),
-          child: Divider(color: Colors.grey, thickness: 1, height: 1),
-        ),
       ),
-      // 🟢 ห่อ body ด้วย RefreshIndicator
       body: RefreshIndicator(
         onRefresh: _onRefresh,
         child: SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
+          physics: AlwaysScrollableScrollPhysics(),
           child: Padding(
-            padding: const EdgeInsets.all(30.0), // ลด Padding ด้านข้าง
+            padding: EdgeInsets.all(30),
             child: FutureBuilder(
               future: _fetchDataFuture,
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting &&
                     _dashboardData.isEmpty) {
-                  return ConstrainedBox(
-                    constraints: BoxConstraints(
-                      minHeight:
-                          MediaQuery.of(context).size.height -
-                          (Scaffold.of(context).appBarMaxHeight ?? 0) -
-                          100,
-                    ),
-                    child: const Center(child: CircularProgressIndicator()),
-                  );
-                } else if (snapshot.hasError && _dashboardData.isEmpty) {
-                  // แสดง Error Widget... (โค้ดเดิม)
-                  return ConstrainedBox(
-                    constraints: BoxConstraints(
-                      minHeight:
-                          MediaQuery.of(context).size.height -
-                          (Scaffold.of(context).appBarMaxHeight ?? 0) -
-                          100,
-                    ),
-                    child: Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(20.0),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(
-                              'Failed to load data from API: ${snapshot.error}',
-                              style: const TextStyle(
-                                color: Colors.red,
-                                fontSize: 16,
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                            const SizedBox(height: 10),
-                            ElevatedButton.icon(
-                              onPressed: _onRefresh,
-                              icon: const Icon(Icons.refresh),
-                              label: const Text('Retry'),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  );
+                  return Center(child: CircularProgressIndicator());
                 }
 
-                // ส่วนแสดงผล
                 return Column(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    // ส่วนแสดงวันที่
-                    const SizedBox(height: 5),
-                    Text(
-                      "Dashboard of all rooms : Today ($displayDate)",
-                      style: const TextStyle(fontSize: 20),
-                    ),
-                    const SizedBox(height: 20),
+                    Text("Dashboard of all rooms: Today ($date)",
+                        style: TextStyle(fontSize: 20)),
+                    SizedBox(height: 20),
 
-                    // 1. กล่องใหญ่ Total Room
-                    _buildTotalRoomSection(_dashboardData),
+                    _totalRoomSection(),
 
-                    // 2. กล่องสถานะย่อย (Free, Pending, Reserved)
                     Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // กล่อง Free
-                        Expanded(
-                          flex: 2,
-                          child: AspectRatio(
-                            aspectRatio: 1,
-                            child: _buildStatusTile(
-                              tileKeys[0],
-                              tileLabels[tileKeys[0]]!,
-                              _dashboardData,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 20),
-                        // กล่อง Pending
-                        Expanded(
-                          flex: 2,
-                          child: AspectRatio(
-                            aspectRatio: 1,
-                            child: _buildStatusTile(
-                              tileKeys[1],
-                              tileLabels[tileKeys[1]]!,
-                              _dashboardData,
-                            ),
-                          ),
-                        ),
+                        Expanded(child: _statusTile("Free", labels["Free"]!)),
+                        SizedBox(width: 20),
+                        Expanded(child: _statusTile("Pending", labels["Pending"]!)),
                       ],
                     ),
-                    const SizedBox(height: 20),
+                    SizedBox(height: 20),
+                    _statusTile("Reserved", labels["Reserved"]!),
 
-                    // Row ที่สอง: Reserved (ยาวเต็มความกว้าง)
-                    AspectRatio(
-                      aspectRatio: 2.5,
-                      child: _buildStatusTile(
-                        tileKeys[2],
-                        tileLabels[tileKeys[2]]!,
-                        _dashboardData,
-                      ),
-                    ),
-
-                    // เพิ่ม SizedBox เพื่อให้มีพื้นที่ว่างด้านล่างสำหรับการดึง
-                    const SizedBox(height: 50),
+                    SizedBox(height: 50),
                   ],
                 );
               },

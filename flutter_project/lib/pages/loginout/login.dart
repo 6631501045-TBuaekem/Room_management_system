@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'dart:convert';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:jwt_decoder/jwt_decoder.dart';
+import '../../utills/http_cilent.dart';   // <-- using your http client
 import '../../main.dart';
 import 'register.dart';
-import '../../utills/session_cilent.dart';
 
-final session = SessionHttpClient();
+
 
 class Loginpage extends StatefulWidget {
   const Loginpage({super.key});
@@ -16,6 +18,7 @@ class Loginpage extends StatefulWidget {
 class _LoginpageState extends State<Loginpage> {
   final _usernameCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
+  bool isWaiting = false;
 
   @override
   void didChangeDependencies() {
@@ -24,26 +27,53 @@ class _LoginpageState extends State<Loginpage> {
   }
 
   Future<void> login() async {
+    setState(() => isWaiting = true);
+
+    final url = Uri.parse('http://10.0.2.2:3005/login');
+
     final body = {
       "username": _usernameCtrl.text.trim(),
       "password": _passwordCtrl.text.trim(),
     };
 
-    final url = Uri.parse('http://10.0.2.2:3005/login');
-    final response = await session.post(url, body: jsonEncode(body));
-
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-      final userRole = data['role'];
-
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => RoomNavigation(userRole: userRole)),
+    try {
+      final response = await HttpClient.client.post(
+        url,
+        body: jsonEncode(body),
+        headers: {"Content-Type": "application/json"},
       );
-    } else {
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+
+        // Store token
+        String token = data['token'];
+        const storage = FlutterSecureStorage();
+        await storage.write(key: 'token', value: token);
+
+        // Decode JWT
+        final payload = JwtDecoder.decode(token);
+        final role = payload['role']; // user role 0,1,2
+
+        if (!mounted) return;
+
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (_) => RoomNavigation(userRole: role),
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(response.body)),
+        );
+      }
+    } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(response.body)),
+        SnackBar(content: Text("Error: $e")),
       );
+    } finally {
+      if (mounted) setState(() => isWaiting = false);
     }
   }
 
@@ -52,7 +82,6 @@ class _LoginpageState extends State<Loginpage> {
     return Scaffold(
       body: Stack(
         children: [
-          // Background image
           const Positioned.fill(
             child: Image(
               image: AssetImage('assets/images/login.jpg'),
@@ -60,18 +89,15 @@ class _LoginpageState extends State<Loginpage> {
             ),
           ),
 
-          // Dark overlay for readability
           Positioned.fill(
             child: Container(color: Colors.black.withOpacity(0.45)),
           ),
 
-          // Foreground content
           Center(
             child: SingleChildScrollView(
               padding: const EdgeInsets.symmetric(horizontal: 25, vertical: 20),
               child: Column(
                 children: [
-                  // Title
                   const Text(
                     'Room Reservation',
                     style: TextStyle(
@@ -83,7 +109,6 @@ class _LoginpageState extends State<Loginpage> {
                   ),
                   const SizedBox(height: 60),
 
-                  // Subtitle
                   const Text(
                     'Login',
                     style: TextStyle(
@@ -98,7 +123,6 @@ class _LoginpageState extends State<Loginpage> {
                   ),
                   const SizedBox(height: 20),
 
-                  // Username input
                   _buildTextField(
                     controller: _usernameCtrl,
                     hint: 'Username',
@@ -106,7 +130,6 @@ class _LoginpageState extends State<Loginpage> {
                   ),
                   const SizedBox(height: 12),
 
-                  // Password input
                   _buildTextField(
                     controller: _passwordCtrl,
                     hint: 'Password',
@@ -114,32 +137,34 @@ class _LoginpageState extends State<Loginpage> {
                   ),
                   const SizedBox(height: 20),
 
-                  // Sign-in button
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
-                      onPressed: login,
+                      onPressed: isWaiting ? null : login,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color.fromARGB(255, 0, 0, 0),
+                        backgroundColor: Colors.black,
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(6),
                         ),
                       ),
-                      child: const Text(
-                        'Sign in',
-                        style: TextStyle(
-                          fontSize: 18,
-                          color: Color.fromARGB(255, 255, 255, 255),
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
+                      child: isWaiting
+                          ? const CircularProgressIndicator(
+                              color: Colors.white,
+                            )
+                          : const Text(
+                              'Sign in',
+                              style: TextStyle(
+                                fontSize: 18,
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
                     ),
                   ),
 
                   const SizedBox(height: 20),
 
-                  // Divider
                   Row(
                     children: const [
                       Expanded(child: Divider(color: Colors.white54)),
@@ -156,7 +181,6 @@ class _LoginpageState extends State<Loginpage> {
 
                   const SizedBox(height: 25),
 
-                  // Sign-up section
                   const Text(
                     "Don't have an account?",
                     style: TextStyle(fontSize: 15, color: Colors.white70),
@@ -170,7 +194,7 @@ class _LoginpageState extends State<Loginpage> {
                       'Sign up',
                       style: TextStyle(
                         fontSize: 20,
-                        color: Color.fromARGB(255, 250, 250, 250),
+                        color: Colors.white,
                         decoration: TextDecoration.underline,
                       ),
                     ),

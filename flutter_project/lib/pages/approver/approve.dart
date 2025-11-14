@@ -1,8 +1,6 @@
-import 'package:flutter/material.dart';
 import 'dart:convert';
-import '../../utills/session_cilent.dart';
-
-final session = SessionHttpClient();
+import 'package:flutter/material.dart';
+import '../../utills/http_cilent.dart';  // <-- FIXED import
 
 class Approvepage extends StatefulWidget {
   const Approvepage({super.key});
@@ -15,9 +13,7 @@ class _ApprovepageState extends State<Approvepage> {
   List<dynamic> _pendingRequests = [];
   bool _loading = true;
 
-  // ✅ ถ้าใช้ Emulator ให้ใช้ 10.0.2.2
-  // ถ้าใช้มือถือจริง (Wi-Fi เดียวกับ backend) ให้เปลี่ยนเป็น IP เครื่อง เช่น "http://192.168.1.7:3005"
-  final String baseUrl = "http://10.0.2.2:3005";
+  final String baseUrl = "http://10.0.2.2:3005"; // Emulator URL
 
   @override
   void initState() {
@@ -25,60 +21,64 @@ class _ApprovepageState extends State<Approvepage> {
     _fetchPendingRequests();
   }
 
-  // ✅ โหลดคำขอที่รออนุมัติ
+  
+  // Load pending requests
   Future<void> _fetchPendingRequests() async {
+    setState(() => _loading = true);
+
     try {
-      final response = await session.get(
-        Uri.parse('$baseUrl/pending-requests'),
-      );
+      final response =
+          await HttpClient.get(Uri.parse('$baseUrl/pending-requests'));
+
       if (response.statusCode == 200) {
         setState(() {
-          _pendingRequests = json.decode(response.body);
+          _pendingRequests = jsonDecode(response.body);
           _loading = false;
         });
       } else {
         setState(() => _loading = false);
+        print("❌ Failed to load pending requests (${response.statusCode})");
       }
     } catch (e) {
-      print("❌ Error loading pending requests: $e");
+      print("❌ Error: $e");
       setState(() => _loading = false);
     }
   }
 
-  Future<void> _updateRequest(int requestId, String status) async {
-    print("📤 Sending to API: request_id=$requestId, booking_status=$status");
+  
+  // Approve or Reject request
+  Future<void> _updateRequest(int requestId, String status, {String? reason}) async {
+    print("📤 Sending update: request_id=$requestId, status=$status");
 
     try {
-      final response = await session.post(
+      final response = await HttpClient.post(
         Uri.parse('$baseUrl/update-requests'),
         body: jsonEncode([
-          {"request_id": requestId, "status": status},
+          {"request_id": requestId, "status": status,
+            if (reason != null) "reject_reason": reason
+          },
         ]),
-
-        headers: {"Content-Type": "application/json"},
       );
 
       if (response.statusCode == 200) {
-        // ✅ ลบรายการจาก list ทันที
+        // Remove instantly from UI
         setState(() {
-          _pendingRequests.removeWhere((req) {
-            print('Removing ID: ${req['request_id']} == $requestId');
-            return req['request_id'] == requestId;
-          });
+          _pendingRequests.removeWhere((req) => req['request_id'] == requestId);
         });
       } else {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text("Failed: ${response.body}")));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Failed: ${response.body}")),
+        );
       }
     } catch (e) {
-      print("❌ Error updating request: $e");
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text("Error: $e")));
+      print("❌ Update error: $e");
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Error: $e")),
+      );
     }
   }
 
+// UI
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -88,11 +88,15 @@ class _ApprovepageState extends State<Approvepage> {
           "Approver",
           style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black),
         ),
-        backgroundColor: const Color(0xFFF9F7F5),
         centerTitle: true,
+        backgroundColor: const Color(0xFFF9F7F5),
+        elevation: 0,
       ),
+
       body: _loading
           ? const Center(child: CircularProgressIndicator())
+
+          // No pending requests
           : _pendingRequests.isEmpty
               ? RefreshIndicator(
                   onRefresh: _fetchPendingRequests,
@@ -108,6 +112,8 @@ class _ApprovepageState extends State<Approvepage> {
                     ],
                   ),
                 )
+
+              // Pending requests list
               : RefreshIndicator(
                   onRefresh: _fetchPendingRequests,
                   child: ListView.builder(
@@ -115,6 +121,7 @@ class _ApprovepageState extends State<Approvepage> {
                     itemCount: _pendingRequests.length,
                     itemBuilder: (context, index) {
                       final req = _pendingRequests[index];
+
                       return Card(
                         margin: const EdgeInsets.only(bottom: 20),
                         elevation: 3,
@@ -133,31 +140,47 @@ class _ApprovepageState extends State<Approvepage> {
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
-                              Text(
-                                req['room_name'] ?? '',
-                                style: const TextStyle(fontSize: 18),
-                              ),
-                              Text(
-                                req['booking_date'] ?? '',
-                                style: const TextStyle(fontSize: 16),
-                              ),
-                              Text(
-                                req['booking_time'] ?? '',
-                                style: const TextStyle(fontSize: 16),
-                              ),
+                              Text(req['room_name'] ?? '',
+                                  style: const TextStyle(fontSize: 18)),
+                              Text(req['booking_date'] ?? '',
+                                  style: const TextStyle(fontSize: 16)),
+                              Text(req['booking_time'] ?? '',
+                                  style: const TextStyle(fontSize: 16)),
                               const SizedBox(height: 8),
                               Text(
                                 "Reason: ${req['reason'] ?? ''}",
                                 style: const TextStyle(fontSize: 16),
                               ),
                               const SizedBox(height: 16),
+
+                              // Approve / Reject Buttons
                               Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                 children: [
-                                  ElevatedButton(
-                                    onPressed: () => _updateRequest(
-                                        req['request_id'], "approve"),
+                                    ElevatedButton(
+                                    onPressed: () async {
+                                      final confirm = await showDialog<bool>(
+                                        context: context,
+                                        builder: (context) => AlertDialog(
+                                          title: const Text("Confirm Approve"),
+                                          content: const Text("Approve this request?"),
+                                          actions: [
+                                            TextButton(
+                                              onPressed: () => Navigator.pop(context, false),
+                                              child: const Text("No"),
+                                            ),
+                                            TextButton(
+                                              onPressed: () => Navigator.pop(context, true),
+                                              child: const Text("Yes"),
+                                            ),
+                                          ],
+                                        ),
+                                      );
+
+                                      if (confirm == true) {
+                                        _updateRequest(req['request_id'], "approve");
+                                      }
+                                    },
                                     style: ElevatedButton.styleFrom(
                                       backgroundColor: Colors.green,
                                     ),
@@ -166,9 +189,54 @@ class _ApprovepageState extends State<Approvepage> {
                                       style: TextStyle(color: Colors.white),
                                     ),
                                   ),
+
                                   ElevatedButton(
-                                    onPressed: () => _updateRequest(
-                                        req['request_id'], "reject"),
+                                  onPressed: () async {
+                                    final TextEditingController reasonController = TextEditingController();
+
+                                    final confirm = await showDialog<bool>(
+                                      context: context,
+                                      builder: (context) => AlertDialog(
+                                        title: const Text("Reject Request"),
+                                        content: TextField(
+                                          controller: reasonController,
+                                          decoration: const InputDecoration(
+                                            labelText: "Reason for rejection",
+                                            hintText: "Enter reason...",
+                                            border: OutlineInputBorder(),
+                                          ),
+                                          maxLines: 3,
+                                        ),
+                                        actions: [
+                                          TextButton(
+                                            onPressed: () => Navigator.pop(context, false),
+                                            child: const Text("No"),
+                                          ),
+                                          TextButton(
+                                            onPressed: () {
+                                              if (reasonController.text.trim().isEmpty) {
+                                                ScaffoldMessenger.of(context).showSnackBar(
+                                                  const SnackBar(content: Text("Please enter a reason")),
+                                                );
+                                                return;
+                                              }
+                                              Navigator.pop(context, true);
+                                            },
+                                            child: const Text("Yes"),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+
+                                    if (confirm == true) {
+                                      _updateRequest(
+                                        req['request_id'],
+                                        "reject",
+                                        reason: reasonController.text.trim(),
+                                      );
+                                    }
+                                  },
+
                                     style: ElevatedButton.styleFrom(
                                       backgroundColor: Colors.red,
                                     ),

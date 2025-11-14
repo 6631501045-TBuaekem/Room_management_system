@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
-import '../../utills/session_cilent.dart';
+import '../../utills/http_cilent.dart';  
 import 'dart:convert';
-
-final session = SessionHttpClient();
 
 class Requestroompage extends StatefulWidget {
   const Requestroompage({super.key});
@@ -41,16 +39,17 @@ class __RequestroomState extends State<Requestroompage> {
     fetchStatus();
   }
 
+  // Fetch available rooms
   Future<void> fetchRooms() async {
     try {
       final now = DateTime.now();
       final today =
           "${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}";
 
-      final url = Uri.parse(
-        'http://10.0.2.2:3005/rooms/request/info?date=$today',
+      final response = await HttpClient.get(
+        Uri.parse("http://10.0.2.2:3005/rooms/request/info?date=$today"),
       );
-      final response = await session.get(url);
+
       if (response.statusCode == 200) {
         final List<dynamic> data = jsonDecode(response.body);
         setState(() {
@@ -59,61 +58,55 @@ class __RequestroomState extends State<Requestroompage> {
           isLoading = false;
         });
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(response.body)),
-        );
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(response.body)));
       }
     } catch (e) {
-      debugPrint('Error fetching rooms: $e');
-      setState(() {
-        isLoading = false;
-      });
+      debugPrint("❌ Error fetching rooms: $e");
+      setState(() => isLoading = false);
     }
   }
 
+  // Fetch current user's booked room status
   Future<void> fetchStatus() async {
     try {
       final now = DateTime.now();
       final today =
           "${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}";
 
-      final url = Uri.parse(
-        'http://10.0.2.2:3005/rooms/check/info?date=$today',
+      final response = await HttpClient.get(
+        Uri.parse("http://10.0.2.2:3005/rooms/check/info?date=$today"),
       );
-      final response = await session.get(url);
 
       if (response.statusCode == 200) {
-        final Map<String, dynamic> data = jsonDecode(response.body);
+        final data = jsonDecode(response.body);
         setState(() {
-          // store full booking list for room/time comparison
-          getRoomstatus = data['bookings'];
+          getRoomstatus = data["bookings"] ?? [];
         });
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(response.body)),
-        );
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(response.body)));
       }
     } catch (e) {
-      debugPrint('Error fetching room status: $e');
-      setState(() {
-        isLoading = false;
-      });
+      debugPrint("❌ Error fetching room status: $e");
     }
   }
 
+  // Filter search
   void searchRoom(String query) {
     setState(() {
       if (query.isEmpty) {
         filteredRooms = rooms;
       } else {
         filteredRooms = rooms.where((room) {
-          final name = room['room_name']?.toLowerCase() ?? '';
+          final name = (room["room_name"] ?? "").toLowerCase();
           return name.contains(query.toLowerCase());
         }).toList();
       }
     });
   }
 
+  // Send booking request
   Future<void> bookingRoom(int roomId, String timeSlot, String reason) async {
     try {
       final now = DateTime.now();
@@ -121,9 +114,10 @@ class __RequestroomState extends State<Requestroompage> {
           "${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}";
 
       final mappedSlot = mapTimeSlot(timeSlot);
+
       if (mappedSlot.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Invalid time slot mapping.')),
+          const SnackBar(content: Text("Invalid time slot mapping.")),
         );
         return;
       }
@@ -134,103 +128,85 @@ class __RequestroomState extends State<Requestroompage> {
         "timeSlot": mappedSlot,
         "reason": reason,
       };
-      final url = Uri.parse('http://10.0.2.2:3005/rooms/request');
-      final response = await session.post(url, body: jsonEncode(body));
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(data['message'] ?? "Booking successful")),
-        );
-      } else {
-        final data = jsonDecode(response.body);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(data['message'] ?? response.body)),
-        );
-      }
+
+      final response = await HttpClient.post(
+        Uri.parse("http://10.0.2.2:3005/rooms/request"),
+        body: jsonEncode(body),
+      );
+
+      final data = jsonDecode(response.body);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(data["message"] ?? "Booking successful")),
+      );
+
       fetchRooms();
       fetchStatus();
     } catch (e) {
-      debugPrint('Error booking room: $e');
-      setState(() {
-        isLoading = false;
-      });
+      debugPrint("❌ Error booking room: $e");
     }
   }
 
+  // Booking dialog
   void showBookingDialog(int roomId, String roomName, String timeSlot) {
     final TextEditingController reasonController = TextEditingController();
 
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-          ),
-          title: const Text('Request Room'),
-          content: SizedBox(
-            width: MediaQuery.of(context).size.width * 0.7,
-            height: 220,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Time Slot: $timeSlot', style: const TextStyle(fontSize: 20)),
-                const SizedBox(height: 20),
-                TextField(
-                  controller: reasonController,
-                  maxLines: 3,
-                  decoration: const InputDecoration(
-                    hintText: 'Enter reason...',
-                    border: OutlineInputBorder(),
-                  ),
+      builder: (_) => AlertDialog(
+        title: const Text("Request Room"),
+        content: SizedBox(
+          height: 220,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text("Time Slot: $timeSlot", style: const TextStyle(fontSize: 20)),
+              const SizedBox(height: 20),
+              TextField(
+                controller: reasonController,
+                maxLines: 3,
+                decoration: const InputDecoration(
+                  border: OutlineInputBorder(),
+                  hintText: "Enter reason...",
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
-          actions: [
-            ElevatedButton(
-              onPressed: () => Navigator.pop(context),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color.fromARGB(255, 165, 34, 24),
-              ),
-              child: const Text('Cancel', style: TextStyle(color: Colors.white, fontSize: 20)),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                final reason = reasonController.text.trim();
-                if (reason.isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Please enter a reason.')),
-                  );
-                  return;
-                }
-                Navigator.pop(context);
-                bookingRoom(roomId, timeSlot, reason);
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color.fromARGB(255, 53, 151, 56),
-              ),
-              child: const Text('Confirm', style: TextStyle(color: Colors.white, fontSize: 20)),
-            ),
-          ],
-        );
-      },
+        ),
+        actions: [
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text("Cancel", style: TextStyle(color: Colors.white)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final reason = reasonController.text.trim();
+              if (reason.isEmpty) {
+                ScaffoldMessenger.of(context)
+                    .showSnackBar(const SnackBar(content: Text("Enter reason")));
+                return;
+              }
+              Navigator.pop(context);
+              bookingRoom(roomId, timeSlot, reason);
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+            child: const Text("Confirm", style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
     );
   }
 
+  // Room card
   Widget buildSingleRoom(
-    int roomId,
-    String title,
-    String description,
-    Map<String, dynamic> timeSlots,
-  ) {
+      int roomId, String title, String description, Map<String, dynamic> timeSlots) {
     return Container(
       margin: const EdgeInsets.only(bottom: 20),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: const Color(0xFFFAF5F5),
-        border: Border.all(color: Colors.black, width: 1),
+        border: Border.all(color: Colors.black),
         borderRadius: BorderRadius.circular(6),
       ),
       child: Column(
@@ -239,81 +215,75 @@ class __RequestroomState extends State<Requestroompage> {
           Text(title, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
           Text(description, style: const TextStyle(fontSize: 18)),
           const SizedBox(height: 10),
-        ...timeSlots.entries.map((slot) {
-        // find matching booking by status only (ignore room/time)
-        final booking = getRoomstatus.firstWhere(
-          (b) => b['booking_status'] != null,
-          orElse: () => null as dynamic,
-        );
 
-        final status = booking?['booking_status'] ?? 'free';
-        final isEnabled = status == 'free' || status == 'reject';
+          ...timeSlots.entries.map((slot) {
+            bool isEnabled = true;
 
-        return Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(slot.key, style: const TextStyle(fontSize: 17)),
-            ElevatedButton(
-              onPressed: isEnabled
-                  ? () => showBookingDialog(roomId, title, slot.key)
-                  : null,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: isEnabled
-                    ? const Color.fromARGB(255, 77, 156, 80) // green
-                    : Colors.grey, // grey
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(6),
+            // Check user's booking status
+            for (var b in getRoomstatus) {
+              if (b["booking_status"] == "pending" ||
+                  b["booking_status"] == "approve") {
+                isEnabled = false;
+                break;
+              }
+            }
+
+            return Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(slot.key, style: const TextStyle(fontSize: 17)),
+                ElevatedButton(
+                  onPressed:
+                      isEnabled ? () => showBookingDialog(roomId, title, slot.key) : null,
+                  style: ElevatedButton.styleFrom(
+                      backgroundColor: isEnabled ? Colors.green : Colors.grey),
+                  child: const Text("Request", style: TextStyle(color: Colors.white)),
                 ),
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 5),
-              ),
-              child: const Text(
-                'Request',
-                style: TextStyle(fontSize: 14, color: Colors.white),
-              ),
-            ),
-          ],
-        );
-      }),
-
+              ],
+            );
+          }),
         ],
       ),
     );
   }
 
   Widget buildRoomPage(List<dynamic> pair) {
-    return SingleChildScrollView(
-      child: Column(
-        children: pair.map((room) {
-          final timeSlots = Map<String, dynamic>.from(room['timeSlots']);
-          return buildSingleRoom(
-            room['room_id'],
-            room['room_name'],
-            room['room_description'],
-            timeSlots,
-          );
-        }).toList(),
-      ),
+    return Column(
+      children: pair.map((room) {
+        return buildSingleRoom(
+          room["room_id"],
+          room["room_name"],
+          room["room_description"],
+          Map<String, dynamic>.from(room["timeSlots"]),
+        );
+      }).toList(),
     );
   }
 
+
+  // UI
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color.fromARGB(255, 241, 229, 229),
+
       body: isLoading
           ? const Center(child: CircularProgressIndicator())
-          : rooms.isEmpty
-              ? const Center(child: Text('No rooms found.'))
+
+          : filteredRooms.isEmpty
+              ? const Center(child: Text("No rooms found."))
+
               : SafeArea(
                   child: Column(
                     children: [
+                      // Search bar
                       Padding(
                         padding: const EdgeInsets.all(20),
                         child: Container(
                           padding: const EdgeInsets.symmetric(horizontal: 8),
                           decoration: BoxDecoration(
                             color: const Color(0xFFFAF5F5),
-                            border: Border.all(color: Colors.black, width: 1),
+                            border: Border.all(color: Colors.black),
                             borderRadius: BorderRadius.circular(6),
                           ),
                           child: Row(
@@ -322,28 +292,27 @@ class __RequestroomState extends State<Requestroompage> {
                               const SizedBox(width: 5),
                               Expanded(
                                 child: TextField(
-                                  decoration: const InputDecoration(
-                                    hintText: 'Search room',
-                                    focusedBorder: InputBorder.none,
-                                    enabledBorder: InputBorder.none,
-                                  ),
                                   controller: controllerSearch,
+                                  decoration: const InputDecoration(
+                                    hintText: "Search room",
+                                    border: InputBorder.none,
+                                  ),
                                   onChanged: searchRoom,
                                 ),
                               ),
                               IconButton(
-                                icon: const Icon(Icons.cancel_outlined),
+                                icon: const Icon(Icons.close),
                                 onPressed: () {
-                                  setState(() {
-                                    controllerSearch.clear();
-                                    searchRoom('');
-                                  });
+                                  controllerSearch.clear();
+                                  searchRoom("");
                                 },
                               ),
                             ],
                           ),
                         ),
                       ),
+
+                      // Room List
                       Expanded(
                         child: RefreshIndicator(
                           onRefresh: () async {
@@ -353,13 +322,13 @@ class __RequestroomState extends State<Requestroompage> {
                           child: ListView.builder(
                             padding: const EdgeInsets.all(10),
                             itemCount: (filteredRooms.length / 2).ceil(),
-                            itemBuilder: (context, index) {
-                              final start = index * 2;
+                            itemBuilder: (_, i) {
+                              final start = i * 2;
                               final end = (start + 2 > filteredRooms.length)
                                   ? filteredRooms.length
                                   : start + 2;
-                              final pair = filteredRooms.sublist(start, end);
-                              return buildRoomPage(pair);
+                              return buildRoomPage(
+                                  filteredRooms.sublist(start, end));
                             },
                           ),
                         ),

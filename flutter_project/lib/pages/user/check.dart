@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
-import '../../utills/session_cilent.dart';
+import '../../utills/http_cilent.dart';  
 import 'dart:convert';
-
-final session = SessionHttpClient();
 
 class Checkroompage extends StatefulWidget {
   const Checkroompage({super.key});
@@ -21,35 +19,38 @@ class __CheckroomState extends State<Checkroompage> {
     fetchRooms();
   }
 
+  // Fetch user's booking
   Future<void> fetchRooms() async {
     try {
-      final url = Uri.parse('http://10.0.2.2:3005/rooms/check/info');
-      final response = await session.get(url);
+      final response = await HttpClient.get(
+        Uri.parse('http://10.0.2.2:3005/rooms/check/info'),
+      );
+
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
 
-        // handle both array or object with "bookings"
-        final List<dynamic> bookingList = data is List
-            ? data
-            : (data['bookings'] ?? []);
+        // handle both API formats
+        final List<dynamic> bookingList =
+            (data is List) ? data : (data['bookings'] ?? []);
+
         setState(() {
           rooms = bookingList;
           isLoading = false;
         });
       } else {
-        String message = response.body;
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(message)));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Failed: ${response.body}")),
+        );
+        setState(() => isLoading = false);
       }
     } catch (e) {
-      debugPrint('.Error fetching rooms: $e');
-      setState(() {
-        isLoading = false;
-      });
+      debugPrint("❌ Error fetching rooms: $e");
+      setState(() => isLoading = false);
     }
   }
 
+
+  // room card
   Widget buildSingleRoom(
     int roomId,
     String title,
@@ -58,6 +59,7 @@ class __CheckroomState extends State<Checkroompage> {
     String status,
     String bookingDate,
     String reason,
+    String? rejectReason
   ) {
     return Container(
       margin: const EdgeInsets.only(bottom: 20),
@@ -70,84 +72,96 @@ class __CheckroomState extends State<Checkroompage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            title,
-            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-          ),
+          Text(title,
+              style: const TextStyle(
+                  fontSize: 22, fontWeight: FontWeight.bold)),
           Text(description, style: const TextStyle(fontSize: 18)),
+
           const SizedBox(height: 10),
-          Padding(
-            padding: EdgeInsetsGeometry.symmetric(vertical: 16),
-            child: Text(
-              'Booking Date:  $bookingDate',
-              style: TextStyle(fontSize: 17),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.only(
-              top: 20,
-              bottom: 20,
-              left: 15,
-              right: 15,
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(timeSlots, style: TextStyle(fontSize: 17)),
-                Text(
-                  '${status[0].toUpperCase()}${status.substring(1)}',
-                  style: TextStyle(
-                    fontSize: 17,
-                    fontWeight: FontWeight.bold,
-                    color: status.toLowerCase() == 'approve'
-                    ? Colors.green
-                    : status.toLowerCase() == 'pending'
-                        ? Colors.orange
-                        : status.toLowerCase() == 'reject'
-                            ? Colors.red
-                            : Colors.black,
-                  
-                  ),
-                ),
-              ],
-            ),
-          ),
-          SizedBox(height: 30),
+          Text("Booking Date: $bookingDate",
+              style: const TextStyle(fontSize: 17)),
+
+          const SizedBox(height: 20),
+
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
+              Text(timeSlots, style: const TextStyle(fontSize: 17)),
               Text(
-                'Your reason: ',
-                style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+                "${status[0].toUpperCase()}${status.substring(1)}",
+                style: TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.bold,
+                  color: status.toLowerCase() == 'approve'
+                      ? Colors.green
+                      : status.toLowerCase() == 'pending'
+                          ? Colors.orange
+                          : status.toLowerCase() == 'reject'
+                              ? Colors.red
+                              : Colors.black,
+                ),
               ),
-              Text(reason, style: TextStyle(
-                fontSize: 17,
-              )),
-              
             ],
           ),
-          if (status.toLowerCase() == 'reject') 
+
+          const SizedBox(height: 30),
+
+          Row(
+            children: [
+              const Text(
+                "Your reason: ",
+                style:
+                    TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+              ),
+              Text(reason, style: const TextStyle(fontSize: 17)),
+            ],
+          ),
+
+          if (status.toLowerCase() == 'reject')
             Row(
-              children: const [
-                Padding(
-                  padding: EdgeInsetsGeometry.symmetric(vertical: 13),
-                  child:  Text(
-                  'Please make a reservation again ',
-                  style: TextStyle(
-                    fontSize: 17,
-                    fontWeight: FontWeight.bold,
-                    color: Color.fromARGB(255, 2, 15, 192),
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                const Icon(
+                  Icons.notification_important,
+                  color: Colors.red,
+                  size: 26,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: RichText(
+                    text: TextSpan(
+                      children: [
+                        TextSpan(
+                          text: (rejectReason == null || rejectReason == "null")
+                              ? ""
+                              : rejectReason,
+                          style: const TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.bold,
+                            color: Color.fromARGB(255, 91, 22, 148), // color for rejectReason
+                          ),
+                        ),
+                        TextSpan(
+                          text: (rejectReason == null || rejectReason == "null")
+                              ? "Please make a reservation again"
+                              : " , Please make a reservation again",
+                          style: const TextStyle(
+                            fontSize: 17,
+                            color: Color.fromARGB(255, 56, 114, 190), // color for the remaining text
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-                )
-               
               ],
-          ),
+            ),
         ],
       ),
     );
   }
 
-  // each page contains 2 rooms
+  // build room
   Widget buildRoomPage(List<dynamic> pair) {
     return SingleChildScrollView(
       child: Column(
@@ -160,71 +174,69 @@ class __CheckroomState extends State<Checkroompage> {
             room['booking_status'],
             room['booking_date'],
             room['reason'],
+            room['reject_reason']
           );
         }).toList(),
       ),
     );
   }
 
+  // UI
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Color.fromARGB(255, 241, 229, 229),
+      backgroundColor: const Color.fromARGB(255, 241, 229, 229),
+
       body: isLoading
           ? const Center(child: CircularProgressIndicator())
+
           : rooms.isEmpty
-          ? const Center(child: Text('No rooms found.'))
-          : SafeArea(
-              child: Column(
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 30),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 20,
-                      ),
-                      decoration: const BoxDecoration(
-                        border: Border(
-                          bottom: BorderSide(
-                            color: Color.fromARGB(255, 165, 164, 164),
-                            width: 1,
+              ? const Center(child: Text("No rooms found."))
+
+              : SafeArea(
+                  child: Column(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(vertical: 25),
+                        decoration: const BoxDecoration(
+                          border: Border(
+                            bottom: BorderSide(
+                                color: Colors.grey, width: 1),
+                          ),
+                        ),
+                        child: const Center(
+                          child: Text(
+                            "Your booking room",
+                            style: TextStyle(fontSize: 25),
                           ),
                         ),
                       ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            'Your booking room',
-                            style: TextStyle(fontSize: 25),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
 
-                  SizedBox(height: 50),
-                  Expanded(
-                    child: RefreshIndicator(
-                      onRefresh: fetchRooms,
-                      child: ListView.builder(
-                        padding: const EdgeInsets.all(10),
-                        itemCount: (rooms.length / 2).ceil(),
-                        itemBuilder: (context, index) {
-                          final start = index * 2;
-                          final end = (start + 2 > rooms.length)
-                              ? rooms.length
-                              : start + 2;
-                          final pair = rooms.sublist(start, end);
-                          return buildRoomPage(pair);
-                        },
+                      const SizedBox(height: 50),
+
+                      Expanded(
+                        child: RefreshIndicator(
+                          onRefresh: fetchRooms,
+                          child: ListView.builder(
+                            padding: const EdgeInsets.all(10),
+                            itemCount: (rooms.length / 2).ceil(),
+                            itemBuilder: (_, i) {
+                              final start = i * 2;
+                              final end = (start + 2 > rooms.length)
+                                  ? rooms.length
+                                  : start + 2;
+
+                              final pair =
+                                  rooms.sublist(start, end);
+
+                              return buildRoomPage(pair);
+                            },
+                          ),
+                        ),
                       ),
-                    ),
+                    ],
                   ),
-                ],
-              ),
-            ),
+                ),
     );
   }
 }

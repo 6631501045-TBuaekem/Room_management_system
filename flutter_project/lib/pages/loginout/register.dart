@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:convert';
-import '../../utills/session_cilent.dart';
-
-final session = SessionHttpClient();
+import '../../utills/http_cilent.dart';    // <-- Correct client
 
 class Registerpage extends StatefulWidget {
   const Registerpage({super.key});
@@ -36,22 +34,41 @@ class _RegisterpageState extends State<Registerpage> {
       return;
     }
 
+    if (name.isEmpty || username.isEmpty || password.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("All fields are required")),
+      );
+      return;
+    }
+
     final body = {
       "name": name,
       "username": username,
       "password": password,
-      "confirm_password": confirm,
-      "role": '0',
+      "role": "0",
     };
 
     final url = Uri.parse('http://10.0.2.2:3005/register');
-    final response = await session.post(url, body: jsonEncode(body));
 
-    if (response.statusCode == 200) {
-      Navigator.pop(context); // return to login page
-    } else {
+    try {
+      final response = await HttpClient.post(
+        url,
+        body: jsonEncode(body),
+      );
+
+      if (response.statusCode == 200) {
+        Navigator.pop(context); // return to login page
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Registration successful")),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(response.body)),
+        );
+      }
+    } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(response.body)),
+        SnackBar(content: Text("Error: $e")),
       );
     }
   }
@@ -61,7 +78,6 @@ class _RegisterpageState extends State<Registerpage> {
     return Scaffold(
       body: Stack(
         children: [
-          // Background image
           const Positioned.fill(
             child: Image(
               image: AssetImage('assets/images/register.jpg'),
@@ -69,12 +85,10 @@ class _RegisterpageState extends State<Registerpage> {
             ),
           ),
 
-          // Dark overlay
           Positioned.fill(
             child: Container(color: Colors.black.withOpacity(0.45)),
           ),
 
-          // Foreground content
           Center(
             child: SingleChildScrollView(
               padding: const EdgeInsets.symmetric(horizontal: 25, vertical: 20),
@@ -105,29 +119,24 @@ class _RegisterpageState extends State<Registerpage> {
                   ),
                   const SizedBox(height: 25),
 
-                  // Name
                   _buildTextField(_nameCtrl, 'Full Name'),
                   const SizedBox(height: 12),
 
-                  // Username
                   _buildTextField(_usernameCtrl, 'Username'),
                   const SizedBox(height: 12),
 
-                  // Password
                   _buildTextField(_passwordCtrl, 'Password', isPassword: true),
                   const SizedBox(height: 12),
 
-                  // Confirm Password
                   _buildTextField(_confirmCtrl, 'Confirm Password', isPassword: true),
                   const SizedBox(height: 25),
 
-                  // Sign up button
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
                       onPressed: register,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color.fromARGB(255, 0, 0, 0),
+                        backgroundColor: Colors.black,
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(6),
@@ -137,7 +146,7 @@ class _RegisterpageState extends State<Registerpage> {
                         'Sign up',
                         style: TextStyle(
                           fontSize: 18,
-                          color: Color.fromARGB(255, 255, 255, 255),
+                          color: Colors.white,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
@@ -146,7 +155,6 @@ class _RegisterpageState extends State<Registerpage> {
 
                   const SizedBox(height: 25),
 
-                  // Back to login
                   TextButton(
                     onPressed: () => Navigator.pop(context),
                     child: const Text(

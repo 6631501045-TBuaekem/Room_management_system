@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_project/pages/loginout/login.dart';
 import 'dart:convert';
-import '../../utills/session_cilent.dart'; 
-final session = SessionHttpClient();
+import '../../utills/http_cilent.dart';  
+import '../../utills/utill.dart';     // <--- ใช้ logout() และ getToken()
 
 class Profilepage extends StatefulWidget {
   const Profilepage({super.key});
@@ -16,7 +15,7 @@ class _ProfileState extends State<Profilepage> {
   String? username;
   bool isLoading = true;
 
-  final String baseUrl = "http://10.0.2.2:3005"; // ✅ Backend URL (ใช้กับ Emulator)
+  final String baseUrl = "http://10.0.2.2:3005";
 
   @override
   void initState() {
@@ -24,10 +23,12 @@ class _ProfileState extends State<Profilepage> {
     _loadProfile();
   }
 
-  // ดึงข้อมูลจาก backend /profile
+  // โหลดข้อมูลโปรไฟล์จาก backend
   Future<void> _loadProfile() async {
     try {
-      final response = await session.get(Uri.parse('$baseUrl/profile'));
+      final response = await HttpClient.get(
+        Uri.parse('$baseUrl/profile'),
+      );
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -37,50 +38,16 @@ class _ProfileState extends State<Profilepage> {
           isLoading = false;
         });
       } else if (response.statusCode == 401) {
-        // session หมดอายุ → กลับไปหน้า login
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => const Loginpage()),
-        );
+        logout(context);   // <--- ใช้ util.logout()
       } else {
         setState(() => isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('โหลดข้อมูลไม่สำเร็จ (${response.statusCode})')),
-        );
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text("Error ${response.statusCode}")));
       }
     } catch (e) {
       setState(() => isLoading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e')),
-      );
-    }
-  }
-
-  // logout แล้วกลับไปหน้า login
-  Future<void> _logout() async {
-    try {
-      final response = await session.post(Uri.parse('$baseUrl/logout'));
-      if (response.statusCode == 200) {
-        final result = jsonDecode(response.body);
-        if (result["message"] == "Logged out successful") {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (_) => const Loginpage()),
-          );
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(result["message"] ?? "Logout failed")),
-          );
-        }
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Logout failed (${response.statusCode})')),
-        );
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e')),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text("Error: $e")));
     }
   }
 
@@ -100,64 +67,59 @@ class _ProfileState extends State<Profilepage> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.start,
                 children: [
-                 const CircleAvatar(
+                  const CircleAvatar(
                     radius: 80,
                     backgroundColor: Colors.grey,
                     backgroundImage: AssetImage('assets/images/avatar.jpg'),
-              ),
+                  ),
+
                   const SizedBox(height: 70),
 
-                  // Name
                   Row(
-                    mainAxisAlignment: MainAxisAlignment.start,
                     children: [
                       const Text('Name: ',
                           style: TextStyle(
-                        
                               fontWeight: FontWeight.bold, fontSize: 20)),
-                      Text(name ?? '',
-                          style: const TextStyle(fontSize: 20)),
+                      Text(name ?? '', style: const TextStyle(fontSize: 20)),
                     ],
                   ),
 
                   const SizedBox(height: 15),
 
-                  // Username
                   Row(
-                    mainAxisAlignment: MainAxisAlignment.start,
                     children: [
-                      const Text('User: ',
+                      const Text('Username: ',
                           style: TextStyle(
                               fontWeight: FontWeight.bold, fontSize: 20)),
-                      Text(username ?? '',
-                          style: const TextStyle(fontSize: 20)),
+                      Text(username ?? '', style: const TextStyle(fontSize: 20)),
                     ],
                   ),
 
-                  const SizedBox(height: 150),
+                  const SizedBox(height: 30,),
                   const Divider(thickness: 1, height: 40),
 
-                  // Logout button
+                  // === ใช้ util.logout() ===
                   ElevatedButton(
-                    onPressed: _logout,
+                    onPressed: () => confirmLogout(context),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.red,
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 40, vertical: 20 ),
+                      padding:
+                          const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(6),
                       ),
                     ),
-                    child: const Text('Log out',
-                        style: TextStyle(
-                            fontSize: 20,
-                            color: Colors.white, fontWeight: FontWeight.bold)),
-                            
+                    child: const Text(
+                      'Log out',
+                      style:
+                          TextStyle(fontSize: 20, color: Colors.white, fontWeight: FontWeight.bold),
+                    ),
                   ),
+
+                  const SizedBox(height: 20),
                 ],
               ),
             ),
-      // ✅ ถ้ามี Bottom Navigation อยู่ในหน้าหลัก ให้เพิ่มตรงนี้ได้
     );
   }
 }
