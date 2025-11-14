@@ -451,7 +451,7 @@ app.get("/rooms/check/info", verifyUser(["0"]), async function (req, res) {
         JOIN room r ON b.room_id = r.room_id
         WHERE b.User_id = ?
         AND b.booking_date = CURDATE()
-        ORDER BY b.booking_date ASC, b.booking_time ASC
+        ORDER BY b.booking_date DESC, b.booking_time DESC, b.request_id DESC
       `;
       const [result] = await connection.query(sql, [uid]);
 
