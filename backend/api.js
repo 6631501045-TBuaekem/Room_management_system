@@ -1,59 +1,31 @@
 const express = require('express');
-const path = require('path');
 const pool = require('./config/db.js');
 const bcrypt = require('bcrypt');
-const session = require('express-session');
-const mysql = require('mysql2');
-const MySQLStore = require('express-mysql-session')(session);
+const jwt = require('jsonwebtoken');
+const mysql = require('mysql2'); // keep for pool compatibility if needed
 
 const app = express();
 
-// ✅ Create MySQL session store using same DB as your pool
-const sessionStore = new MySQLStore({
-  host: 'localhost',
-  port: 3306,
-  user: 'root',             // your DB username
-  password: '',             // your DB password
-  database: 'room_reservation_system' // your DB name
-}, pool.promise());          // optional: reuse your existing pool
-
-// ✅ Attach express-session middleware
-app.use(session({
-  key: 'connect.sid',        // same cookie key Express uses by default
-  secret: 'your-secret-key',
-  store: sessionStore,
-  resave: false,
-  saveUninitialized: false,
-  rolling: true,
-  cookie: {
-    secure: false,           // set true only if HTTPS
-    httpOnly: true,
-    sameSite: 'lax',         // helps with cookie reliability on mobile
-    maxAge: 24 * 60 * 60 * 1000 // 24h
-  }
-}));
-
-
-app.use('/public', express.static(path.join(__dirname, "public")));
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
+const JWT_KEY = 'room-reservation';
+const JWT_EXPIRES = '24h'; // token lifetime
 
-const timesim = 13; // ทดสอบเวลา: Ex. timesim = 9, null = ใช้เวลาจริง.  timesim=6 reset สถานะ
+// ==================== Time simulation utilities ====================
+const timesim = 9; // null = real time, 6 reset status
 
-// Return a Date object adjusted for simulated time
 function getNowDate() {
   if (timesim === null) return new Date();
   const now = new Date();
   return new Date(now.getFullYear(), now.getMonth(), now.getDate(), timesim, 0, 0, 0);
 }
 
-// Return fractional hour (e.g. 11.5)
 function getCurrentHourFrac() {
   const d = getNowDate();
   return d.getHours() + d.getMinutes() / 60;
 }
 
-// For cron/logging use
 function getCurrentTime() {
   const d = getNowDate();
   return { hour: d.getHours(), minute: d.getMinutes() };
@@ -64,219 +36,168 @@ function isEarlyMorningReset(time) {
 }
 
 function isEndOfDay(time) {
-  return time.hour >= 17; // after 5 PM
+  return time.hour >= 17;
 }
 
-// ใน body มี username, password
-// {
-//     "username": "Mike_Student",
-//     "password": "1234"
-// }
-app.post("/login", async function(req,res){    // POST response output ออกมาเป็น json: {message: "Login Successful"}
-    const username = req.body.username;
-    const password = req.body.password;
+// ==================== Auth middleware (multi-role support) ====================
+function verifyUser(requiredRoles = null) {
+  // requiredRoles can be null (any authenticated), a string like "0", or array like ["1","2"]
+  const rolesArray = requiredRoles == null
+    ? null
+    : (Array.isArray(requiredRoles) ? requiredRoles : [requiredRoles]);
 
-    try {
-        const connection = await pool.promise().getConnection();
-        try {
-            const sql = `SELECT UserID, name, username, role, password FROM users WHERE username = ?`;
-            const [result] = await connection.query(sql, [username]);
-            
-            if (result.length !== 1) {
-                res.status(401).send("Wrong username or password");
-                return;
-            }
+  return (req, res, next) => {
+    let token = req.headers['authorization'] || req.headers['x-access-token'];
+    if (!token) return res.status(400).send('No token');
 
-                try {
-                    const isHashed = result[0].password.startsWith('$2b$');
-                    let match;
-                
-                    if (isHashed) {
-                        match = await bcrypt.compare(password, result[0].password);
-                    } else {
-                        match = password === result[0].password;
-                        
-                        if (match) {
-                            const saltRounds = 10;
-                            const hashedPassword = await bcrypt.hash(password, saltRounds);
-                        await connection.query(
-                            `UPDATE users SET password = ? WHERE UserID = ?`,
-                            [hashedPassword, result[0].UserID]
-                        );
-                        }
-                    }
-                    
-                    if (!match) {
-                        res.status(401).send("Wrong username or password");
-                        return;
-                    }
-
-                    let formattedId;
-                    const userId = result[0].UserID.toString().padStart(3, '0');
-                    switch(result[0].role) {
-                    case "0": formattedId = `U${userId}`; break;
-                    case "1": formattedId = `S${userId}`; break;
-                    case "2": formattedId = `A${userId}`; break;
-                    default: formattedId = userId;
-                }
-
-                    req.session.userId = result[0].UserID;
-                    req.session.userRole = result[0].role;
-                    req.session.userName = result[0].name;
-                    req.session.username = result[0].username;
-                    
-                    // return
-                    res.status(200).json({
-                        message: "Login Successful",
-                        role: result[0].role,
-                        userId: result[0].UserID,
-                        formattedId: formattedId,
-                        name: result[0].name,
-                        username: result[0].username
-                    });
-                } catch (error) {
-                    console.error('Password comparison error:', error);
-                    res.status(500).send("Something went wrong");
-                }
-        } finally {
-            connection.release();
-            }
-    } catch (error) {
-        console.error('Database error:', error);
-        res.status(500).send("Database Server Error");
-        }
-})
-
-// ใน body มี name, username, password, role
-// {
-//     "name": "John Doe",
-//     "username": "johnfarmer",
-//     "password": "1234",
-//     "role": "0"
-//  }
-app.post("/register", async function(req, res) {
-    const name = req.body.name;
-    const username = req.body.username;
-    const password = req.body.password;
-    const role = req.body.role;
-
-    // Validate input
-    if (!name || !username || !password) {
-        return res.status(400).json({ message: "All fields are required" });
+    if (req.headers.authorization) {
+      const parts = token.split(' ');
+      if (parts.length === 2 && parts[0] === 'Bearer') token = parts[1];
     }
 
-    try {
-        const connection = await pool.promise().getConnection();
-        try {
-    // First check if username already exists
-    const checkUsername = "SELECT * FROM users WHERE username = ?";
-            const [existingUsers] = await connection.query(checkUsername, [username]);
+    jwt.verify(token, JWT_KEY, (err, decoded) => {
+      if (err) return res.status(401).send('Incorrect token');
 
-            if (existingUsers.length > 0) {
-            return res.status(409).json({ message: "Username already exists" });
-        }
-
-            // Hash the password
-            const saltRounds = 10;
-            const hashedPassword = await bcrypt.hash(password, saltRounds);
-
-            // Insert new user
-            const sql = `INSERT INTO users (name, username, password, role) VALUES (?, ?, ?, ?)`;
-            await connection.query(sql, [name, username, hashedPassword, role]);
-            
-                    res.status(200).json({
-                        message: "Registration Successful"
-                    });
-        } finally {
-            connection.release();
-                }
-        } catch (error) {
-        console.error('Database error:', error);
-        res.status(500).json({ message: "Database Server Error" });
-        }
-});
-
-
-app.post("/logout", function (req, res) {
-  if (req.session) {
-    req.session.destroy(err => {
-      if (err) {
-        console.error("Logout error:", err);
-        return res.status(500).json({ message: "Failed to log out" });
+      if (rolesArray && !rolesArray.includes(String(decoded.role))) {
+        return res.status(403).send('Unauthorized');
       }
-      res.clearCookie("connect.sid"); // optional: clear session cookie
-      res.status(200).json({ message: "Logged out successful" });
+
+      req.decoded = decoded; // { uid, username, name, role, iat, exp }
+      next();
     });
-  } else {
-    res.status(200).json({ message: "No active session" });
-  }
-});
+  };
+}
 
-
-// profile
-// ได้ออกมา
-// {
-//     "name": "Mike BB",
-//     "username": "Mike_Student",
-//     "role": "0"
-// }
-app.get('/profile', async function (req, res) {
-  const username = req.session?.username; // safer access
-
-  if (!username) {
-    return res.status(401).json({ message: 'Not logged in' });
-  }
+// ==================== AUTH ROUTES ====================
+// POST /login  body: { username, password }
+app.post("/login", async function (req, res) {
+  const { username, password } = req.body;
+  if (!username || !password) return res.status(400).send("Username and password required");
 
   try {
     const connection = await pool.promise().getConnection();
     try {
-      const sql = `SELECT name, username FROM users WHERE username = ?`;
-      const [result] = await connection.query(sql, [username]);
+      const sql = `SELECT UserID, name, username, role, password FROM users WHERE username = ?`;
+      const [rows] = await connection.query(sql, [username]);
 
-      if (result.length === 0) {
-        return res.status(404).json({ message: 'User not found' });
+      if (rows.length !== 1) {
+        return res.status(401).send("Wrong username or password");
       }
 
-      res.status(200).json({
-        name: result[0].name,
-        username: result[0].username,
-        role: req.session.userRole, // เก็บใน session
+      const user = rows[0];
+      const isHashed = typeof user.password === 'string' && user.password.startsWith('$2b$');
+      let match = false;
+
+      if (isHashed) {
+        match = await bcrypt.compare(password, user.password);
+      } else {
+        match = password === user.password;
+        if (match) {
+          const hashedPassword = await bcrypt.hash(password, 10);
+          await connection.query(`UPDATE users SET password = ? WHERE UserID = ?`, [hashedPassword, user.UserID]);
+        }
+      }
+
+      if (!match) return res.status(401).send("Wrong username or password");
+
+      // format id for response (keeps original behaviour)
+      const userIdStr = user.UserID.toString().padStart(3, '0');
+      let formattedId;
+      switch (user.role) {
+        case "0": formattedId = `U${userIdStr}`; break;
+        case "1": formattedId = `S${userIdStr}`; break;
+        case "2": formattedId = `A${userIdStr}`; break;
+        default: formattedId = userIdStr;
+      }
+
+      const payload = {
+        uid: user.UserID,
+        username: user.username,
+        name: user.name,
+        role: user.role
+      };
+
+      const token = jwt.sign(payload, JWT_KEY, { expiresIn: JWT_EXPIRES });
+
+      return res.status(200).json({
+        message: "Login Successful",
+        token,
+        role: user.role,
+        userId: user.UserID,
+        formattedId,
+        name: user.name,
+        username: user.username
       });
     } finally {
       connection.release();
     }
-  } catch (error) {
-    console.error('Database error:', error);
-    res.status(500).json({ message: 'Database Server Error' });
+  } catch (err) {
+    console.error("Database error:", err);
+    return res.status(500).send("Database Server Error");
   }
 });
 
+// POST /register body: { name, username, password, role }
+app.post("/register", async function (req, res) {
+  const { name, username, password, role } = req.body;
+  if (!name || !username || !password) return res.status(400).json({ message: "All fields are required" });
 
-// http://localhost:3005/rooms/info?date=2025-10-24
-// Browseroom
-// ได้ออกมา
-// [
-//     {
-//         "room_id": 32,
-//         "room_name": "A7-128",
-//         "room_description": "blablablablabla",
-//         "timeSlots": {
-//             "08.00 - 10.00": "Free"
-//             "10.00 - 12.00": "Pending"
-//             "13.00 - 15.00": "Reserved"
-//             "15.00 - 17.00": "Reserved"
-//         }
-//     },...
-// ]
-app.get("/rooms/info", async function (req, res) {
-  if (!req.session?.userId) {
-    return res.status(401).json({ message: "Unauthorized - Please login first" });
+  try {
+    const connection = await pool.promise().getConnection();
+    try {
+      const [existing] = await connection.query(`SELECT * FROM users WHERE username = ?`, [username]);
+      if (existing.length > 0) return res.status(409).json({ message: "Username already exists" });
+
+      const hashedPassword = await bcrypt.hash(password, 10);
+      await connection.query(`INSERT INTO users (name, username, password, role) VALUES (?, ?, ?, ?)`, [name, username, hashedPassword, role || "0"]);
+
+      return res.status(200).json({ message: "Registration Successful" });
+    } finally {
+      connection.release();
+    }
+  } catch (err) {
+    console.error("Database error:", err);
+    return res.status(500).json({ message: "Database Server Error" });
   }
+});
 
+// POST /logout
+// With JWT there's no strict server-side logout unless you maintain a blacklist.
+// This endpoint exists for parity: client should delete token. Here we respond OK.
+app.post("/logout", verifyUser(), function (req, res) {
+  res.status(200).json({ message: "Logged out successful" });
+});
+
+// GET /profile
+app.get('/profile', verifyUser(), async function (req, res) {
+  const username = req.decoded?.username;
+  if (!username) return res.status(401).json({ message: 'Not logged in' });
+
+  try {
+    const connection = await pool.promise().getConnection();
+    try {
+      const [rows] = await connection.query(`SELECT name, username FROM users WHERE username = ?`, [username]);
+      if (rows.length === 0) return res.status(404).json({ message: 'User not found' });
+
+      return res.status(200).json({
+        name: rows[0].name,
+        username: rows[0].username,
+        role: req.decoded.role
+      });
+    } finally {
+      connection.release();
+    }
+  } catch (err) {
+    console.error("Database error:", err);
+    return res.status(500).json({ message: 'Database Server Error' });
+  }
+});
+
+// GET /rooms/info?date=YYYY-MM-DD
+app.get("/rooms/info", verifyUser(["0","1","2"]), async function (req, res) {
+  // Anyone authenticated can view room info (0=user,1=staff,2=approver)
   const selectedDate = req.query.date;
-  if (!selectedDate) {
-    return res.status(400).json({ message: "Date query is required" });
-  }
+  if (!selectedDate) return res.status(400).json({ message: "Date query is required" });
 
   try {
     const connection = await pool.promise().getConnection();
@@ -296,19 +217,16 @@ app.get("/rooms/info", async function (req, res) {
           u.username AS user_name
         FROM room r
         LEFT JOIN booking b 
-          ON r.room_name = b.room_name  
-          AND b.booking_date = ?
-          AND b.booking_status != 'reject'
+            ON r.room_name = b.room_name  
+            AND b.booking_date = ?
+            AND b.booking_status != 'reject'
         LEFT JOIN users u ON b.User_id = u.UserID
         ORDER BY r.room_name
       `;
 
       const [result] = await connection.query(sql, [selectedDate]);
 
-      const now = getNowDate();
       const currentHour = getCurrentHourFrac();
-
-      // Define slot start and end times
       const slotRanges = {
         "08.00 - 10.00": [8, 10],
         "10.00 - 12.00": [10, 12],
@@ -327,9 +245,8 @@ app.get("/rooms/info", async function (req, res) {
             "15.00 - 17.00": row.timestatus15
           };
 
-          // ✅ Remove slots that have already ended
           for (const [key, value] of Object.entries(timeSlots)) {
-            const [start, end] = slotRanges[key];
+            const [, end] = slotRanges[key];
             if (end <= currentHour || value === 'Unavailable') {
               delete timeSlots[key];
             }
@@ -339,51 +256,46 @@ app.get("/rooms/info", async function (req, res) {
             room_id: row.room_id,
             room_name: row.room_name,
             room_description: row.room_description,
-            timeSlots: timeSlots
+            timeSlots
           };
         }
 
-        // ✅ Update slot with booking status
         if (row.booking_time) {
           const time = row.booking_time.toString();
-          if (rooms[row.room_name].timeSlots[time] !== undefined) {
-            if (row.booking_status === 'approve') {
-              rooms[row.room_name].timeSlots[time] = 'Reserved';
-            } else if (row.booking_status === 'pending') {
-              rooms[row.room_name].timeSlots[time] = 'Pending';
-            }
+          const slotMap = {
+            "8": "08.00 - 10.00",
+            "10": "10.00 - 12.00",
+            "13": "13.00 - 15.00",
+            "15": "15.00 - 17.00"
+          };
+          const slot = slotMap[row.booking_time?.toString()];
+
+          if (slot && rooms[row.room_name].timeSlots[slot] !== undefined) {
+            if (row.booking_status === 'approve') rooms[row.room_name].timeSlots[slot] = 'Reserved';
+            else if (row.booking_status === 'pending') rooms[row.room_name].timeSlots[slot] = 'Pending';
           }
         }
       });
 
-      const roomsArray = Object.values(rooms);
-      res.status(200).json(roomsArray);
+      res.status(200).json(Object.values(rooms));
     } finally {
       connection.release();
     }
-  } catch (error) {
-    console.error("Database error:", error);
+  } catch (err) {
+    console.error("Database error:", err);
     res.status(500).json({ message: "Database Server Error" });
   }
 });
 
 
-// http://localhost:3005/rooms/request/info?date=2025-10-24
-// request room  // get only free status
-// ได้ออกมา เหมือน browseroom แต่เฉพาะ free
-app.get("/rooms/request/info", async function (req, res) {
-  if (!req.session?.userId || req.session?.userRole !== "0") {
-    return res.status(401).json({ message: "Unauthorized - Please login first" });
-  }
-
-  if (!req.query.date) {
-    return res.status(400).json({ message: "Date query is required" });
-  }
+// ========================= FETCH REQUEST ROOM (ROLE 0) ===============================
+app.get("/rooms/request/info", verifyUser(["0"]), async function (req, res) {
+  const selectedDate = req.query.date;
+  if (!selectedDate) return res.status(400).json({ message: "Date query is required" });
 
   try {
     const connection = await pool.promise().getConnection();
     try {
-      const selectedDate = req.query.date;
       const sql = `
         SELECT 
           r.room_id,
@@ -399,19 +311,15 @@ app.get("/rooms/request/info", async function (req, res) {
           u.username as user_name
         FROM room r
         LEFT JOIN booking b 
-          ON r.room_name = b.room_name 
-          AND b.booking_date = ?
+           ON r.room_name = b.room_name 
+           AND b.booking_date = ?
         LEFT JOIN users u ON b.User_id = u.UserID
         ORDER BY r.room_name
       `;
 
       const [result] = await connection.query(sql, [selectedDate]);
+      const currentHour = getCurrentHourFrac();
 
-      // current fractional hour (e.g. 11.33)
-      const now = getNowDate();
-      const currentHourFrac = getCurrentHourFrac();
-
-      // slot start/end ranges
       const slotRanges = {
         "08.00 - 10.00": [8, 10],
         "10.00 - 12.00": [10, 12],
@@ -419,43 +327,37 @@ app.get("/rooms/request/info", async function (req, res) {
         "15.00 - 17.00": [15, 17]
       };
 
-      // only treat "past" relative to server now when selectedDate is today
-      const todayIso = getNowDate().toISOString().split('T')[0];
-      const isSelectedDateToday = selectedDate === todayIso;
+      const todayIso = getNowDate().toISOString().split("T")[0];
+      const isToday = selectedDate === todayIso;
 
       const rooms = {};
 
       result.forEach(row => {
         if (!rooms[row.room_name]) {
-          const allTimeSlots = {
+          const allSlots = {
             "08.00 - 10.00": row.timestatus8,
             "10.00 - 12.00": row.timestatus10,
             "13.00 - 15.00": row.timestatus13,
             "15.00 - 17.00": row.timestatus15
           };
 
-          const filteredSlots = Object.fromEntries(
-            Object.entries(allTimeSlots).filter(([key, status]) => {
-              // must be Free
-              if (status !== 'Free') return false;
-
-              // if viewing today, exclude slots that have ended
-              if (isSelectedDateToday) {
+          const freeSlots = Object.fromEntries(
+            Object.entries(allSlots).filter(([key, status]) => {
+              if (status !== "Free") return false;
+              if (isToday) {
                 const [, end] = slotRanges[key];
-                return end > currentHourFrac;
+                return end > currentHour;
               }
-
-              // future date (or other date) => keep Free slots
               return true;
             })
           );
 
-          if (Object.keys(filteredSlots).length > 0) {
+          if (Object.keys(freeSlots).length > 0) {
             rooms[row.room_name] = {
               room_id: row.room_id,
               room_name: row.room_name,
               room_description: row.room_description,
-              timeSlots: filteredSlots
+              timeSlots: freeSlots
             };
           }
         }
@@ -465,137 +367,81 @@ app.get("/rooms/request/info", async function (req, res) {
     } finally {
       connection.release();
     }
-  } catch (error) {
-    console.error("Database error:", error);
-    res.status(500).json({ message: "Database Server Error" });
+  } catch (err) {
+    console.error("Database error:", err);
+    return res.status(500).json({ message: "Database Server Error" });
   }
 });
 
-// ใน body มี room_id, date, timeSlot, reason
-// {
-//     "room_id": "35",
-//     "date": "2025-10-24",
-//     "timeSlot": "15",
-//     "reason": "Study group meeting"
-// }
-app.post("/rooms/request", async function(req, res) {
-    // Check if user is logged in and has user role
-    if (!req.session?.userId || req.session?.userRole !== "0") {
-        res.status(401).json({ message: "Unauthorized - Please login first" });
-        return;
+// POST /rooms/request body: { room_id, date, timeSlot, reason }
+// ========================= SUBMIT ROOM REQUEST (ROLE 0) ===============================
+app.post("/rooms/request", verifyUser(["0"]), async function (req, res) {
+  const uid = req.decoded.uid;
+  const { room_id, date, timeSlot, reason } = req.body;
+
+  if (!room_id || !date || !timeSlot || !reason)
+    return res.status(400).json({ message: "Missing required fields" });
+
+  let connection;
+
+  try {
+    connection = await pool.promise().getConnection();
+    await connection.beginTransaction();
+
+    // 1) ensure user doesn't have booking for same date
+    const [existing] = await connection.query(
+      `SELECT * FROM booking WHERE User_id = ? AND booking_date = ? AND booking_status != 'reject'`,
+      [uid, date]
+    );
+
+    if (existing.length > 0) {
+      await connection.rollback();
+      return res.status(400).json({ message: "You already have a booking for this date" });
     }
 
-    // Validate input
-    const { room_id, date, timeSlot, reason } = req.body;
-    if (!room_id || !date || !timeSlot || !reason) {
-        res.status(400).json({ message: "Missing required fields" });
-        return;
+    // 2) check room availability
+    const [r] = await connection.query(
+      `SELECT * FROM room WHERE room_id = ? AND timestatus${timeSlot} = 'Free'`,
+      [room_id]
+    );
+
+    if (r.length === 0) {
+      await connection.rollback();
+      return res.status(400).json({ message: "Room is not available for the selected time slot" });
     }
 
-    let connection;
-    try {
-        // Get a connection from the pool
-        connection = await pool.promise().getConnection();
-        
-        // Start transaction
-        await connection.beginTransaction();
+    // 3) insert new booking
+    await connection.query(
+      `INSERT INTO booking (User_id, room_id, booking_date, booking_time, reason, booking_status)
+       VALUES (?, ?, ?, ?, ?, 'pending')`,
+      [uid, room_id, date, timeSlot, reason]
+    );
 
-        try {
-            // Check if user already has a booking for this date
-            const checkBookingSql = `
-                SELECT * FROM booking 
-                WHERE User_id = ? AND booking_date = ? AND booking_status != 'reject'
-            `;
-            const [existingBookings] = await connection.query(checkBookingSql, [req.session.userId, date]);
+    // 4) update room slot
+    await connection.query(
+      `UPDATE room SET timestatus${timeSlot} = 'Pending' WHERE room_id = ?`,
+      [room_id]
+    );
 
-            if (existingBookings.length > 0) {
-                await connection.rollback();
-                res.status(400).json({ message: "You already have a booking for this date" });
-            return;
-        }
-
-            // Check room availability
-            const checkRoomSql = `
-                SELECT * FROM room 
-                WHERE room_id = ? AND timestatus${timeSlot} = 'Free'
-            `;
-            const [rooms] = await connection.query(checkRoomSql, [room_id]);
-
-            if (rooms.length === 0) {
-                await connection.rollback();
-                res.status(400).json({ message: "Room is not available for the selected time slot" });
-                return;
-            }
-
-            // Insert new booking
-            const insertBookingSql = `
-                INSERT INTO booking (User_id, room_id, booking_date, booking_time, reason, booking_status)
-                VALUES (?, ?, ?, ?, ?, 'pending')
-            `;
-            await connection.query(insertBookingSql, [
-                req.session.userId,
-                room_id,
-                date,
-                timeSlot,
-                reason
-            ]);
-
-            // Update room status
-            const updateRoomSql = `
-                UPDATE room 
-                SET timestatus${timeSlot} = 'Pending'
-                WHERE room_id = ?
-            `;
-            await connection.query(updateRoomSql, [room_id]);
-
-            // Commit transaction
-            await connection.commit();
-
-            res.status(200).json({ message: "Reservation submitted successfully" });
-        } catch (error) {
-            // Rollback transaction on error
-            await connection.rollback();
-            throw error;
-        }
-    } catch (error) {
-        console.error('Database error:', error);
-        res.status(500).json({ message: "Database Server Error" });
-    } finally {
-        // Always release the connection back to the pool
-        if (connection) {
-            connection.release();
-        }
-    }
+    await connection.commit();
+    return res.status(200).json({ message: "Reservation submitted successfully" });
+  } catch (err) {
+    if (connection) await connection.rollback();
+    console.error("Database error:", err);
+    return res.status(500).json({ message: "Database Server Error" });
+  } finally {
+    if (connection) connection.release();
+  }
 });
 
-
-
-
-// check room // check status after request
-// ได้ออกมา
-// {
-//     "bookings": [
-//         {
-//             "request_id": 315,
-//             "room_name": "abc-123",
-//             "room_description": "new room",
-//             "booking_date": "24/10/2025",
-//             "booking_time": "15:00 - 17:00",
-//             "booking_status": "pending",
-//             "reason": "Study group meeting"
-//         }
-//     ]
-// } 
-app.get("/rooms/check/info", async function (req, res) {
-  if (!req.session?.userId || req.session?.userRole !== "0") {
-    res.status(401).json({ message: "Unauthorized - Please login first" });
-    return;
-  }
+// GET /rooms/check/info?date=YYYY-MM-DD
+// ========================= CHECK ROOM REQUEST (ROLE 0) ===============================
+app.get("/rooms/check/info", verifyUser(["0"]), async function (req, res) {
+  const uid = req.decoded.uid;
 
   try {
     const connection = await pool.promise().getConnection();
     try {
-      const userId = req.session.userId;
       const sql = `
         SELECT 
           b.*,
@@ -607,15 +453,12 @@ app.get("/rooms/check/info", async function (req, res) {
         AND b.booking_date = CURDATE()
         ORDER BY b.booking_date ASC, b.booking_time ASC
       `;
-
-      const [result] = await connection.query(sql, [userId]);
+      const [result] = await connection.query(sql, [uid]);
 
       if (result.length === 0) {
-        res.status(200).json({ bookings: [] });
-        return;
+        return res.status(200).json({ bookings: [] });
       }
 
-      // Map time slot codes to readable format
       const timeSlotMap = {
         "8": "08:00 - 10:00",
         "10": "10:00 - 12:00",
@@ -623,54 +466,39 @@ app.get("/rooms/check/info", async function (req, res) {
         "15": "15:00 - 17:00"
       };
 
-      // Format results
-      const formattedBookings = result.map(b => {
-      const dateObj = new Date(b.booking_date);
-      const formattedDate = `${String(dateObj.getDate()).padStart(2, "0")}/${String(dateObj.getMonth() + 1).padStart(2, "0")}/${dateObj.getFullYear()}`;
-      const formattedTime = timeSlotMap[b.booking_time?.toString()] || "-";
+      const formatted = result.map(b => {
+        const dateObj = new Date(b.booking_date);
+        const formattedDate =
+          `${String(dateObj.getDate()).padStart(2, "0")}/${String(dateObj.getMonth() + 1).padStart(2, "0")}/${dateObj.getFullYear()}`;
 
-      return {
-        request_id: b.request_id,
-        room_name: b.room_name,
-        room_description: b.room_description,
-        booking_date: formattedDate,
-        booking_time: formattedTime,
-        booking_status: b.booking_status,
-        reason: b.reason
-      };
-    });
+        const timeLabel = timeSlotMap[b.booking_time?.toString()] || "-";
 
-      res.status(200).json({ bookings: formattedBookings });
+        return {
+          request_id: b.request_id,
+          room_name: b.room_name,
+          room_description: b.room_description,
+          booking_date: formattedDate,
+          booking_time: timeLabel,
+          booking_status: b.booking_status,
+          reason: b.reason,
+          reject_reason: b.reject_reason
+        };
+      });
+
+      return res.status(200).json({ bookings: formatted });
     } finally {
       connection.release();
     }
-  } catch (error) {
-    console.error("Database error:", error);
-    res.status(500).json({ message: "Database Server Error" });
+  } catch (err) {
+    console.error("Database error:", err);
+    return res.status(500).json({ message: "Database Server Error" });
   }
 });
 
 
-// Manage room  // get room details เอาเฉพาะ free, disable
-// ได้ออกมา
-// [
-//     {
-//         "room_id": 3,
-//         "room_name": "C1-313",
-//         "room_description": "A lecture hall, Lcd projector, Screen, Amp, Mic and speaker with 160 available seats",
-//         "timeSlots": {
-//            "08:00 - 10:00": "Free",
-//            "10:00 - 12:00": "Free",
-//            "13:00 - 15:00": "Free",
-//            "15:00 - 17:00": "Free"
-//          }
-//     },...
-// ]
-app.get('/rooms/manage/info', async function (req, res) {
-  if (!req.session?.userId || req.session?.userRole !== "1") {
-    return res.status(401).json({ message: "Unauthorized - Staff access required" });
-  }
 
+// ========================= FETCH ROOM (ROLE 1) ===============================
+app.get('/rooms/manage/info', verifyUser(["1"]), async function (req, res) {
   try {
     const connection = await pool.promise().getConnection();
     try {
@@ -686,287 +514,198 @@ app.get('/rooms/manage/info', async function (req, res) {
         FROM room
         ORDER BY room_name
       `;
-      const [result] = await connection.query(sql);
+
+      const [rows] = await connection.query(sql);
 
       const currentHour = getCurrentHourFrac();
-      const now = getNowDate();
-      const todayIso = now.toISOString().split("T")[0];
 
-      // Slot start-end times
       const slotRanges = {
         timestatus8: [8, 10],
         timestatus10: [10, 12],
         timestatus13: [13, 15],
-        timestatus15: [15, 17],
+        timestatus15: [15, 17]
       };
 
       const timeMap = {
         timestatus8: "08:00 - 10:00",
         timestatus10: "10:00 - 12:00",
         timestatus13: "13:00 - 15:00",
-        timestatus15: "15:00 - 17:00",
+        timestatus15: "15:00 - 17:00"
       };
 
-      const formatted = result.map(room => {
-        const timeSlots = {};
+      const formatted = rows
+        .map(room => {
+          const timeSlots = {};
 
-        for (const [key, label] of Object.entries(timeMap)) {
-          const [start, end] = slotRanges[key];
+          for (const [key, label] of Object.entries(timeMap)) {
+            const [, end] = slotRanges[key];
 
-          // ✅ Show only upcoming or disabled slots
-          if (
-            room[key] === "Disable" || // always show Disable
-            (room[key] === "Free" && end > currentHour)
-          ) {
-            timeSlots[label] = room[key];
+            if (
+              room[key] === "Disable" ||
+              (room[key] === "Free" && end > currentHour)
+            ) {
+              timeSlots[label] = room[key];
+            }
           }
-        }
 
-        return {
-          room_id: room.room_id,
-          room_name: room.room_name,
-          room_description: room.room_description,
-          timeSlots,
-        };
-      }).filter(room => Object.keys(room.timeSlots).length > 0);
+          return {
+            room_id: room.room_id,
+            room_name: room.room_name,
+            room_description: room.room_description,
+            timeSlots
+          };
+        })
+        .filter(room => Object.keys(room.timeSlots).length > 0);
 
-      res.status(200).json(formatted);
+      return res.status(200).json(formatted);
+
     } finally {
       connection.release();
     }
-  } catch (error) {
-    console.error("Database error:", error);
-    res.status(500).json({ message: "Database Server Error" });
+  } catch (err) {
+    console.error("Database error:", err);
+    return res.status(500).json({ message: "Database Server Error" });
   }
 });
 
 
+// POST /rooms/manage/add body: { room_name, room_description }
+// ========================== ADD ROOM (ROLE: 1)======================
+app.post('/rooms/manage/add', verifyUser(["1"]), async function (req, res) {
+  const { room_name, room_description } = req.body;
 
-
-
-// Add room  // add room name, description after add all status is free
-// ใน body มี room_name, room_description
-// {
-//     "room_name": "abc-123",
-//     "room_description": "a new rooms"
-// }
-// ได้ออกมา
-// {
-//     "message": "Room added successfully",
-//     "room_id": 35
-// }
-app.post('/rooms/manage/add', async function (req, res) {
-    // Check if staff is logged in and has staff role
-    if (!req.session?.userId || req.session?.userRole !== "1") {
-        res.status(401).json({ message: "Unauthorized - Staff access required" });
-        return;
-    }
-
-    const { room_name, room_description } = req.body;
-
-    if (!room_name || !room_description) {
-        res.status(400).json({ message: "Room name and description are required" });
-        return;
-    }
-
-    try {
-        const connection = await pool.promise().getConnection();
-        try {
-            // Check if room already exists
-            const checkSql = "SELECT * FROM room WHERE room_name = ?";
-            const [existingRooms] = await connection.query(checkSql, [room_name]);
-
-            if (existingRooms.length > 0) {
-                res.status(409).json({ message: "Room already exists" });
-                return;
-            }
-
-            // Insert new room
-            const insertSql = `
-                INSERT INTO room (room_name, room_description, timestatus8, timestatus10, timestatus13, timestatus15)
-                VALUES (?, ?, 'Free', 'Free', 'Free', 'Free')
-            `;
-            const [result] = await connection.query(insertSql, [room_name, room_description]);
-            
-            // Return room_id along with success message
-            res.status(200).json({ 
-                message: "Room added successfully", 
-                room_id: result.insertId 
-            });
-        } finally {
-            connection.release();
-        }
-    } catch (error) {
-        console.error('Database error:', error);
-        res.status(500).json({ message: "Database Server Error" });
-    }
-});
-
-// Edit room  // edit room name, description
-// ใน body มี room_id, room_name, room_description
-// {
-//     "room_id": 35,
-//     "room_name": "abcs-123",
-//     "room_description": "a new room"
-// }
-// ได้ออกมา
-// {
-//     "message": "Room updated successfully"
-// }
-app.put('/rooms/manage/edit', function (req, res) {
-    // Check if staff is logged in and has staff role
-    if (!req.session?.userId || req.session?.userRole !== "1") {
-        res.status(401).json({ message: "Unauthorized - Staff access required" });
-                return;
-    }
-
-    const { room_id, room_name, room_description } = req.body;
-    
-    // Validate required fields
-    if (!room_id || !room_name || !room_description) {
-        return res.status(400).json({ message: "Missing required fields" });
-    }
-
-    // First check if the new room name already exists (excluding current room)
-    const checkSql = "SELECT COUNT(*) AS count FROM room WHERE room_name = ? AND room_id != ?";
-    
-    pool.query(checkSql, [room_name, room_id], (err, results) => {
-        if (err) {
-            console.error('Database error:', err);
-            return res.status(500).json({ message: "Database Server Error" });
-        }
-
-        if (results[0].count > 0) {
-            return res.status(409).json({ message: "Room name already exists" });
-        }
-
-        // Update room details
-        const updateSql = "UPDATE room SET room_name = ?, room_description = ? WHERE room_id = ?";
-        
-        pool.query(updateSql, [room_name, room_description, room_id], (err, results) => {
-            if (err) {
-                console.error('Database error:', err);
-                return res.status(500).json({ message: "Database Server Error" });
-            } 
-            
-            if (results.affectedRows === 0) {
-                return res.status(404).json({ message: "Room not found" });
-            }
-            
-            res.status(200).json({ message: "Room updated successfully" });
-        });
-    });
-});
-
-
-
-// action -> enable = free, disable = disable
-// ใน body มี room_id, action
-// {
-//   "room_id": 32,
-//   "action": "enable"
-// }
-// ได้ออกมา
-// {
-//     "message": "Room enabled successfully"
-// }
-app.put('/rooms/manage/enaanddis', async function (req, res) {
-  if (!req.session?.userId || req.session?.userRole !== "1") {
-    return res.status(401).json({ message: "Unauthorized - Staff access required" });
-  }
-
-  const { room_id, action } = req.body;
-  if (!room_id || !["enable", "disable"].includes(action)) {
-    return res.status(400).json({ message: "Room ID and valid action (enable/disable) are required" });
+  if (!room_name || !room_description) {
+    return res.status(400).json({ message: "Room name and description are required" });
   }
 
   try {
     const connection = await pool.promise().getConnection();
     try {
-      // ✅ Fetch current room status
+      const [existing] = await connection.query(`SELECT * FROM room WHERE room_name = ?`, [room_name]);
+      if (existing.length > 0)
+        return res.status(409).json({ message: "Room already exists" });
+
+      const sql = `
+        INSERT INTO room (room_name, room_description, timestatus8, timestatus10, timestatus13, timestatus15)
+        VALUES (?, ?, 'Free', 'Free', 'Free', 'Free')
+      `;
+      const [result] = await connection.query(sql, [room_name, room_description]);
+
+      return res.status(200).json({
+        message: "Room added successfully",
+        room_id: result.insertId
+      });
+    } finally {
+      connection.release();
+    }
+  } catch (err) {
+    console.error("Database error:", err);
+    return res.status(500).json({ message: "Database Server Error" });
+  }
+});
+
+
+// PUT /rooms/manage/edit body: { room_id, room_name, room_description }
+// ========================== EDIT ROOM (ROLE: 1)======================
+app.put('/rooms/manage/edit', verifyUser(["1"]), function (req, res) {
+  const { room_id, room_name, room_description } = req.body;
+
+  if (!room_id || !room_name || !room_description)
+    return res.status(400).json({ message: "Missing required fields" });
+
+  pool.query(
+    `SELECT COUNT(*) AS count FROM room WHERE room_name = ? AND room_id != ?`,
+    [room_name, room_id],
+    (err, rows) => {
+      if (err) return res.status(500).json({ message: "Database Server Error" });
+
+      if (rows[0].count > 0)
+        return res.status(409).json({ message: "Room name already exists" });
+
+      pool.query(
+        `UPDATE room SET room_name = ?, room_description = ? WHERE room_id = ?`,
+        [room_name, room_description, room_id],
+        (err2, result) => {
+          if (err2) return res.status(500).json({ message: "Database Server Error" });
+          if (result.affectedRows === 0)
+            return res.status(404).json({ message: "Room not found" });
+
+          return res.status(200).json({ message: "Room updated successfully" });
+        }
+      );
+    }
+  );
+});
+
+
+// PUT /rooms/manage/enaanddis body: { room_id, action } // action -> enable = free, disable = disable
+// ========================== ENABLE & DISABLE ROOM (ROLE: 1)======================
+app.put('/rooms/manage/enaanddis', verifyUser(["1"]), async function (req, res) {
+  const { room_id, action } = req.body;
+
+  if (!room_id || !["enable", "disable"].includes(action))
+    return res.status(400).json({ message: "Room ID and valid action are required" });
+
+  try {
+    const connection = await pool.promise().getConnection();
+    try {
       const [rows] = await connection.query(
         `SELECT timestatus8, timestatus10, timestatus13, timestatus15 FROM room WHERE room_id = ?`,
         [room_id]
       );
 
-      if (rows.length === 0) {
-        return res.status(404).json({ message: "Room not found." });
-      }
+      if (rows.length === 0) return res.status(404).json({ message: "Room not found" });
 
-      const room = rows[0];
-      const statuses = Object.values(room);
+      const statuses = Object.values(rows[0]);
+      const allAllowed = statuses.every(s => s === "Free" || s === "Disable");
+      if (!allAllowed)
+        return res.status(400).json({ message: "Cannot enable/disable due to active slots" });
 
-      // ✅ If any timeslot is not Free/Disable → block toggling
-      const allAllowed = statuses.every(
-        (status) => status === "Free" || status === "Disable"
-      );
-
-      if (!allAllowed) {
-        return res.status(400).json({
-          message: "Cannot enable or disable — room has active or reserved slots.",
-        });
-      }
-
-      // ✅ Update only Free/Disable slots
       let sql;
       if (action === "disable") {
         sql = `
           UPDATE room SET
-            timestatus8 = CASE WHEN timestatus8 = 'Free' THEN 'Disable' ELSE timestatus8 END,
-            timestatus10 = CASE WHEN timestatus10 = 'Free' THEN 'Disable' ELSE timestatus10 END,
-            timestatus13 = CASE WHEN timestatus13 = 'Free' THEN 'Disable' ELSE timestatus13 END,
-            timestatus15 = CASE WHEN timestatus15 = 'Free' THEN 'Disable' ELSE timestatus15 END
+            timestatus8 = CASE WHEN timestatus8='Free' THEN 'Disable' ELSE timestatus8 END,
+            timestatus10 = CASE WHEN timestatus10='Free' THEN 'Disable' ELSE timestatus10 END,
+            timestatus13 = CASE WHEN timestatus13='Free' THEN 'Disable' ELSE timestatus13 END,
+            timestatus15 = CASE WHEN timestatus15='Free' THEN 'Disable' ELSE timestatus15 END
           WHERE room_id = ?
         `;
       } else {
         sql = `
           UPDATE room SET
-            timestatus8 = CASE WHEN timestatus8 = 'Disable' THEN 'Free' ELSE timestatus8 END,
-            timestatus10 = CASE WHEN timestatus10 = 'Disable' THEN 'Free' ELSE timestatus10 END,
-            timestatus13 = CASE WHEN timestatus13 = 'Disable' THEN 'Free' ELSE timestatus13 END,
-            timestatus15 = CASE WHEN timestatus15 = 'Disable' THEN 'Free' ELSE timestatus15 END
+            timestatus8 = CASE WHEN timestatus8='Disable' THEN 'Free' ELSE timestatus8 END,
+            timestatus10 = CASE WHEN timestatus10='Disable' THEN 'Free' ELSE timestatus10 END,
+            timestatus13 = CASE WHEN timestatus13='Disable' THEN 'Free' ELSE timestatus13 END,
+            timestatus15 = CASE WHEN timestatus15='Disable' THEN 'Free' ELSE timestatus15 END
           WHERE room_id = ?
         `;
       }
 
       await connection.query(sql, [room_id]);
+      return res.status(200).json({ message: `Room ${action}d successfully` });
 
-      res.status(200).json({ message: `Room ${action}d successfully` });
     } finally {
       connection.release();
     }
-  } catch (error) {
-    console.error("Database error:", error);
-    res.status(500).json({ message: "Database Server Error" });
+  } catch (err) {
+    console.error("Database error:", err);
+    return res.status(500).json({ message: "Database Server Error" });
   }
 });
 
 
-
-
-
-// show dashboard sum all status
-// ได้ออกมา 
-// {
-//     "date": "24/10/2025",
-//     "freeSlots": "35",
-//     "pendingSlots": "1",
-//     "reservedSlots": "0",
-//     "disabledSlots": "4"
-// }
-app.get("/slotdashboard", async function (req, res) {
-  if (
-    !req.session?.userId ||
-    (req.session?.userRole !== "1" && req.session?.userRole !== "2")
-  ) {
-    return res.status(401).json({ message: "Unauthorized" });
-  }
-
+// ========================= DASHBOARD (ROLE: 1,2) ===============================
+app.get("/slotdashboard", verifyUser(["1", "2"]), async function (req, res) {
   const currentHour = getCurrentHourFrac();
   const now = getNowDate();
 
-  // Map slot end times
-  const slotEnds = { 8: 10, 10: 12, 13: 15, 15: 17 };
+  const slotEnds = {
+    8: 10,
+    10: 12,
+    13: 15,
+    15: 17
+  };
 
   try {
     const [rows] = await pool.promise().query(`
@@ -975,7 +714,10 @@ app.get("/slotdashboard", async function (req, res) {
       FROM room
     `);
 
-    let free = 0, pending = 0, reserved = 0, disabled = 0;
+    let free = 0,
+      pending = 0,
+      reserved = 0,
+      disabled = 0;
 
     for (const row of rows) {
       const statuses = {
@@ -985,16 +727,14 @@ app.get("/slotdashboard", async function (req, res) {
         15: row.timestatus15
       };
 
-      // Count only slots whose end time > current time
-      for (const [slotStart, status] of Object.entries(statuses)) {
-        if (slotEnds[slotStart] > currentHour) {
-          if (status === "Free") free++;
-          else if (status === "Pending") pending++;
-          else if (status === "Reserved") reserved++;
+      for (const [slot, stat] of Object.entries(statuses)) {
+        if (slotEnds[slot] > currentHour) {
+          if (stat === "Free") free++;
+          else if (stat === "Pending") pending++;
+          else if (stat === "Reserved") reserved++;
         }
       }
 
-      // Disabled if *all* slots are Disable
       if (
         row.timestatus8 === "Disable" &&
         row.timestatus10 === "Disable" &&
@@ -1005,12 +745,8 @@ app.get("/slotdashboard", async function (req, res) {
       }
     }
 
-    const formattedDate = `${now
-      .getDate()
-      .toString()
-      .padStart(2, "0")}/${(now.getMonth() + 1)
-      .toString()
-      .padStart(2, "0")}/${now.getFullYear()}`;
+    const formattedDate =
+      `${String(now.getDate()).padStart(2, "0")}/${String(now.getMonth() + 1).padStart(2, "0")}/${now.getFullYear()}`;
 
     res.status(200).json({
       date: formattedDate,
@@ -1022,48 +758,33 @@ app.get("/slotdashboard", async function (req, res) {
     });
   } catch (err) {
     console.error("Database error:", err);
-    res.status(500).json({ message: "Database error" });
+    return res.status(500).json({ message: "Database error" });
   }
 });
 
 
-// get pending request from user after use booking
-// ได้ออกมา
-// [
-//     {
-//         "request_id": 314,
-//         "username": "Mike_Student",
-//         "room_name": "abcs-123",
-//         "booking_date": "24 October 2025",
-//         "booking_time": "15:00 - 17:00",
-//         "reason": "Study group meeting"
-//     },...
-// ]
-app.get("/pending-requests", function(req, res) {
-  if (!req.session?.userId || req.session?.userRole !== "2") {
-    res.status(401).json({ message: "Unauthorized" });
-    return;
-  }
 
+// ========================= FETCH PENDING REQUEST (ROLE 2) ===============================
+app.get("/pending-requests", verifyUser(["2"]), function (req, res) {
   const sql = `
-      SELECT 
-          b.request_id,
-          u.username,
-          b.room_name,
-          b.booking_date,
-          b.booking_time,
-          b.reason
-      FROM booking b
-      JOIN users u ON b.User_id = u.UserID
-      WHERE b.booking_status = 'pending'
-      ORDER BY b.booking_date ASC, b.booking_time ASC
+    SELECT 
+        b.request_id,
+        u.username,
+        b.room_name,
+        b.booking_date,
+        b.booking_time,
+        b.reason,
+        u.UserID
+    FROM booking b
+    JOIN users u ON b.User_id = u.UserID
+    WHERE b.booking_status = 'pending'
+    ORDER BY b.booking_date ASC, b.booking_time ASC
   `;
 
-  pool.query(sql, function(err, result) {
+  pool.query(sql, function (err, rows) {
     if (err) {
       console.error("Database error:", err);
-      res.status(500).json({ message: "Database error" });
-      return;
+      return res.status(500).json({ message: "Database error" });
     }
 
     const timeMap = {
@@ -1078,160 +799,127 @@ app.get("/pending-requests", function(req, res) {
       "July", "August", "September", "October", "November", "December"
     ];
 
-    const formattedRows = result.map(row => {
-      const dateObj = new Date(row.booking_date);
-      const formattedDate = `${dateObj.getDate()} ${monthNames[dateObj.getMonth()]} ${dateObj.getFullYear()}`;
-      const formattedTime = timeMap[row.booking_time?.toString()] || "-";
+    const formatted = rows.map(row => {
+      const dt = new Date(row.booking_date);
+      const formattedDate = `${dt.getDate()} ${monthNames[dt.getMonth()]} ${dt.getFullYear()}`;
 
       return {
-        ...row,
+        request_id: row.request_id,
+        username: row.username,
+        room_name: row.room_name,
         booking_date: formattedDate,
-        booking_time: formattedTime
+        booking_time: timeMap[row.booking_time?.toString()] || "-",
+        reason: row.reason
       };
     });
 
-    res.status(200).json(formattedRows);
+    res.status(200).json(formatted);
   });
 });
 
-
-// Approve/reject user's request
-// ใน body มี request_id, status
-// [
-//     {
-//         "request_id": 306,
-//         "status": "approve"  หรือ reject
-//     }
-// ]
-// ได้ออกมา
-// {
-//     "success": true,
-//     "message": "Requests updated successfully"
-// }
-app.post("/update-requests", async function (req, res) {
-  if (!req.session?.userId || req.session?.userRole !== "2") {
-    return res.status(401).json({ message: "Unauthorized" });
-  }
-
+// POST /update-requests body: { request_id, status } // status = 'approve' || 'reject'
+// ========================= APPROVER UPDATE REQUESTS (ROLE 2) ===============================
+app.post("/update-requests", verifyUser(["2"]), async function (req, res) {
   const decisions = req.body;
+  const approverId = req.decoded.uid;
+  const approverName = req.decoded.name;
+
   if (!Array.isArray(decisions) || decisions.length === 0) {
     return res.status(400).json({ message: "No decisions provided" });
   }
 
   let connection;
+
   try {
     connection = await pool.promise().getConnection();
     await connection.beginTransaction();
 
     for (const decision of decisions) {
-      // ✅ FIX — use both 'status' and 'decisions' as valid keys (fallback)
       const status = decision.status || decision.decisions;
+      const reason = decision.reject_reason || null;
 
-      // ✅ validate status
       if (!decision.request_id || !["approve", "reject", "pending"].includes(status)) {
         console.warn("Invalid decision:", decision);
         continue;
       }
 
-      // ✅ update booking table
-      const updateBookingSql = `
+      // update booking
+      await connection.query(
+        `
         UPDATE booking
         SET booking_status = ?,
             approver_name = ?,
-            approve_id = ?
+            approve_id = ?,
+            reject_reason = ?
         WHERE request_id = ?
-      `;
-      await connection.query(updateBookingSql, [
-        status,
-        req.session.userName,
-        req.session.userId,
-        decision.request_id,
-      ]);
+      `,
+        [
+          status,
+          approverName,
+          approverId,
+          status === "reject" ? reason : null,
+          decision.request_id
+        ]
+      );
 
-      // ✅ If approved — mark time slot as Reserved
-      if (status === "approve") {
-        const [booking] = await connection.query(
-          `SELECT room_id, booking_time FROM booking WHERE request_id = ?`,
-          [decision.request_id]
-        );
-        if (booking.length > 0) {
+      const [booking] = await connection.query(
+        `SELECT room_id, booking_time FROM booking WHERE request_id = ?`,
+        [decision.request_id]
+      );
+
+      if (booking.length > 0) {
+        const roomId = booking[0].room_id;
+        const time = booking[0].booking_time;
+
+        if (status === "approve") {
           await connection.query(
-            `UPDATE room 
-             SET timestatus${booking[0].booking_time} = 'Reserved'
-             WHERE room_id = ?`,
-            [booking[0].room_id]
+            `UPDATE room SET timestatus${time} = 'Reserved' WHERE room_id = ?`,
+            [roomId]
           );
         }
-      }
 
-      // ✅ If rejected — mark time slot as Free
-      if (status === "reject") {
-        const [booking] = await connection.query(
-          `SELECT room_id, booking_time FROM booking WHERE request_id = ?`,
-          [decision.request_id]
-        );
-        if (booking.length > 0) {
+        if (status === "reject") {
           await connection.query(
-            `UPDATE room 
-             SET timestatus${booking[0].booking_time} = 'Free'
-             WHERE room_id = ?`,
-            [booking[0].room_id]
+            `UPDATE room SET timestatus${time} = 'Free' WHERE room_id = ?`,
+            [roomId]
           );
         }
       }
     }
 
-    // ✅ commit transaction
     await connection.commit();
-
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
-      message: "Requests updated successfully",
+      message: "Requests updated successfully"
     });
-  } catch (error) {
+
+  } catch (err) {
     if (connection) await connection.rollback();
-    console.error("Database error:", error);
-    res.status(500).json({
+    console.error("Database error:", err);
+    return res.status(500).json({
       success: false,
-      message: "Database error",
+      message: "Database error"
     });
   } finally {
     if (connection) connection.release();
   }
 });
 
-// get history based on each role
-// ได้ออกมา
-// [
-//     {
-//         "room": "abcs-123",
-//         "booking_date": "24/10/25",
-//         "booking_time": "12:48",
-//         "booking_timeslot": "15.00 - 17.00",
-//         "booker_name": "Mike_Student",
-//         "status": "pending",
-//         "approver_name": "-"
-//     }
-// ]
-app.get("/history/info", function (req, res) {
-  if (!req.session?.userId) {
-    return res.status(401).json({ message: "Unauthorized - Please login first" });
-  }
 
-  const userId = req.session.userId;
-  const userRole = req.session.userRole;
+
+// ===================== HISTORY FOR ALL ROLES ==========================
+app.get("/history/info", verifyUser(["0", "1", "2"]), function (req, res) {
+  const uid = req.decoded.uid;
+  const role = req.decoded.role;
 
   let sql, params;
 
-  switch (userRole) {
-    case "0": // User — show their own booking history
+  switch (role) {
+    case "0": // normal user
       sql = `
-        SELECT 
-            b.*,
-            r.room_name,
-            r.room_description,
-            u.name AS booker_name,
-            a.name AS approver_name
+        SELECT b.*, r.room_name, r.room_description,
+               u.name AS booker_name,
+               a.name AS approver_name
         FROM booking b
         JOIN room r ON b.room_id = r.room_id
         JOIN users u ON b.User_id = u.UserID
@@ -1239,17 +927,14 @@ app.get("/history/info", function (req, res) {
         WHERE b.User_id = ?
         ORDER BY b.booking_date DESC, b.booking_time DESC, b.created_at DESC
       `;
-      params = [userId];
+      params = [uid];
       break;
 
-    case "1": // Staff — all bookings
+    case "1": // staff: see all
       sql = `
-        SELECT 
-            b.*,
-            r.room_name,
-            r.room_description,
-            u.name AS booker_name,
-            a.name AS approver_name
+        SELECT b.*, r.room_name, r.room_description,
+               u.name AS booker_name,
+               a.name AS approver_name
         FROM booking b
         JOIN room r ON b.room_id = r.room_id
         JOIN users u ON b.User_id = u.UserID
@@ -1259,14 +944,11 @@ app.get("/history/info", function (req, res) {
       params = [];
       break;
 
-    case "2": // Approver — their approved/rejected bookings
+    case "2": // approver
       sql = `
-        SELECT 
-            b.*,
-            r.room_name,
-            r.room_description,
-            u.name AS booker_name,
-            a.name AS approver_name
+        SELECT b.*, r.room_name, r.room_description,
+               u.name AS booker_name,
+               a.name AS approver_name
         FROM booking b
         JOIN room r ON b.room_id = r.room_id
         JOIN users u ON b.User_id = u.UserID
@@ -1274,14 +956,14 @@ app.get("/history/info", function (req, res) {
         WHERE b.approve_id = ? OR b.booking_status = 'pending'
         ORDER BY b.booking_date DESC, b.booking_time DESC, b.created_at DESC
       `;
-      params = [userId];
+      params = [uid];
       break;
 
     default:
-      return res.status(401).json({ message: "Unauthorized - Invalid role" });
+      return res.status(401).json({ message: "Invalid role" });
   }
 
-  pool.query(sql, params, function (err, results) {
+  pool.query(sql, params, function (err, rows) {
     if (err) {
       console.error("Database error:", err);
       return res.status(500).json({ message: "Database Server Error" });
@@ -1294,40 +976,31 @@ app.get("/history/info", function (req, res) {
       "15": "15.00 - 17.00"
     };
 
-    const formattedResults = results.map(booking => {
-      const date = new Date(booking.booking_date);
-      const formattedDate = `${date.getDate()}/${date.getMonth() + 1}/${date.getFullYear().toString().slice(-2)}`;
+    const formatted = rows.map(b => {
+      const d = new Date(b.booking_date);
+      const formattedDate = `${d.getDate()}/${d.getMonth() + 1}/${String(d.getFullYear()).slice(-2)}`;
 
-      const timeSource = booking.created_at || booking.timestamp || booking.booking_date;
-      const timeObj = new Date(timeSource);
-      const formattedTime = `${timeObj.getHours().toString().padStart(2, "0")}:${timeObj.getMinutes().toString().padStart(2, "0")}`;
+      const createdAt = b.created_at ? new Date(b.created_at) : new Date();
+      const formattedTime = `${String(createdAt.getHours()).padStart(2, "0")}:${String(createdAt.getMinutes()).padStart(2, "0")}`;
 
-      let displayApproverName = booking.approver_name;
-      if (!displayApproverName && booking.booking_status === "reject") {
-        displayApproverName = "System";
-      } else if (!displayApproverName) {
-        displayApproverName = "-";
-      }
-
-      const bookingSlot = timeSlotMap[booking.booking_time?.toString()] || "Unknown";
+      let approverName = b.approver_name;
+      if (!approverName && b.booking_status === "reject") approverName = "System";
+      if (!approverName) approverName = "-";
 
       return {
-        room: booking.room_name,
+        room: b.room_name,
         booking_date: formattedDate,
         booking_time: formattedTime,
-        booking_timeslot: bookingSlot,
-        booker_name: booking.booker_name,
-        status: booking.booking_status,
-        approver_name: displayApproverName
+        booking_timeslot: timeSlotMap[b.booking_time?.toString()] || "Unknown",
+        booker_name: b.booker_name,
+        status: b.booking_status,
+        approver_name: approverName
       };
     });
 
-    res.status(200).json(formattedResults);
+    res.status(200).json(formatted);
   });
 });
-
-
-
 
 //  Timeslot 
 
