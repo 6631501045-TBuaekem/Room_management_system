@@ -236,12 +236,12 @@ final String thirdData = isStudent
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-  isRejected ? "Rejected by:" : "Approved by:",
-  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-),
+                    isRejected ? "Rejected by:" : "Approved by:",
+                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
 
-                      Text(entry.approvedBy!,
-                      style: const TextStyle(fontSize: 18)), 
+                  Text(entry.approvedBy!,
+                    style: const TextStyle(fontSize: 18)), 
                 ],
               ),
             ]
