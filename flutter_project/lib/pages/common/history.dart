@@ -135,8 +135,13 @@ class _HistorypageState extends State<Historypage> {
 
     final statusColor = isRejected ? Colors.red : Colors.green;
 
-    final String thirdHeader = isStudent ? "Approve by" : "User";
-    final String thirdData = isStudent ? (entry.approvedBy ?? "-") : entry.user;
+final String thirdHeader = isStudent
+    ? (isRejected ? "Rejected by" : "Approve by")
+    : "User";
+
+final String thirdData = isStudent
+    ? (entry.approvedBy ?? "-")
+    : entry.user;
 
     final bool showApprovedBelow = isStaff && entry.approvedBy != null;
 
@@ -230,11 +235,13 @@ class _HistorypageState extends State<Historypage> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text("Approved by:",
-                      style:
-                          TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                  Text(entry.approvedBy!,
-                      style: const TextStyle(fontSize: 18)),
+                  Text(
+  isRejected ? "Rejected by:" : "Approved by:",
+  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+),
+
+                      Text(entry.approvedBy!,
+                      style: const TextStyle(fontSize: 18)), 
                 ],
               ),
             ]
