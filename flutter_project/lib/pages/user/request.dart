@@ -267,75 +267,86 @@ class __RequestroomState extends State<Requestroompage> {
     return Scaffold(
       backgroundColor: const Color.fromARGB(255, 241, 229, 229),
 
-      body: isLoading
-          ? const Center(child: CircularProgressIndicator())
-
-          : filteredRooms.isEmpty
-              ? const Center(child: Text("No rooms found."))
-
-              : SafeArea(
-                  child: Column(
-                    children: [
-                      // Search bar
-                      Padding(
-                        padding: const EdgeInsets.all(20),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFFAF5F5),
-                            border: Border.all(color: Colors.black),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Row(
-                            children: [
-                              const Icon(Icons.search),
-                              const SizedBox(width: 5),
-                              Expanded(
-                                child: TextField(
-                                  controller: controllerSearch,
-                                  decoration: const InputDecoration(
-                                    hintText: "Search room",
-                                    border: InputBorder.none,
-                                  ),
-                                  onChanged: searchRoom,
-                                ),
-                              ),
-                              IconButton(
-                                icon: const Icon(Icons.close),
-                                onPressed: () {
-                                  controllerSearch.clear();
-                                  searchRoom("");
-                                },
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-
-                      // Room List
-                      Expanded(
-                        child: RefreshIndicator(
-                          onRefresh: () async {
-                            await fetchRooms();
-                            await fetchStatus();
-                          },
-                          child: ListView.builder(
-                            padding: const EdgeInsets.all(10),
-                            itemCount: (filteredRooms.length / 2).ceil(),
-                            itemBuilder: (_, i) {
-                              final start = i * 2;
-                              final end = (start + 2 > filteredRooms.length)
-                                  ? filteredRooms.length
-                                  : start + 2;
-                              return buildRoomPage(
-                                  filteredRooms.sublist(start, end));
-                            },
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
+body: isLoading
+    ? const Center(child: CircularProgressIndicator())
+    : SafeArea(
+        child: Column(
+          children: [
+            // SEARCH BAR (always visible)
+            Padding(
+              padding: const EdgeInsets.all(20),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                decoration: BoxDecoration(
+                  color: Color(0xFFFAF5F5),
+                  border: Border.all(color: Colors.black),
+                  borderRadius: BorderRadius.circular(6),
                 ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.search),
+                    const SizedBox(width: 5),
+                    Expanded(
+                      child: TextField(
+                        controller: controllerSearch,
+                        decoration: const InputDecoration(
+                          hintText: "Search room",
+                          border: InputBorder.none,
+                        ),
+                        onChanged: searchRoom,
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: () {
+                        controllerSearch.clear();
+                        searchRoom("");
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            // LIST OR EMPTY STATE
+            Expanded(
+              child: RefreshIndicator(
+                onRefresh: () async {
+                  await fetchRooms();
+                  await fetchStatus();
+                },
+                child: filteredRooms.isEmpty
+                    ? ListView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        children: const [
+                          SizedBox(height: 250),
+                          Center(
+                            child: Text(
+                              "No rooms found.",
+                              style: TextStyle(fontSize: 18),
+                            ),
+                          ),
+                        ],
+                      )
+                    : ListView.builder(
+                        padding: const EdgeInsets.all(10),
+                        itemCount: (filteredRooms.length / 2).ceil(),
+                        itemBuilder: (_, i) {
+                          final start = i * 2;
+                          final end = (start + 2 > filteredRooms.length)
+                              ? filteredRooms.length
+                              : start + 2;
+                          return buildRoomPage(
+                            filteredRooms.sublist(start, end),
+                          );
+                        },
+                      ),
+              ),
+            ),
+          ],
+        ),
+      ),
+
     );
   }
 }
